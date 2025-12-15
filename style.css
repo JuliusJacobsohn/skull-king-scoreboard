@@ -22,6 +22,8 @@ body{
   margin:0; padding:0;
   font-family:var(--sans);
   color:var(--text);
+  width:100%;
+  overflow-x:hidden;
   background:
     radial-gradient(900px 600px at 20% 10%, rgba(244,197,66,.10), transparent 60%),
     radial-gradient(900px 600px at 80% 20%, rgba(125,211,252,.08), transparent 55%),
@@ -59,6 +61,7 @@ body{
 .wrap{
   max-width:980px; margin:0 auto;
   padding:12px 12px 18px;
+  width:100%;
   display:grid; gap:16px;
 }
 .card{
@@ -165,13 +168,13 @@ button:hover{background:rgba(255,255,255,.09);}
 .histWrap{overflow:auto; margin-top:14px;}
 table{
   width:100%;
+  min-width:0;
   border-collapse:separate;
   border-spacing:0;
   border:1px solid var(--line);
   border-radius:var(--r);
   overflow:hidden;
   background:rgba(0,0,0,.18);
-  min-width: 520px;
 }
 th,td{
   padding:10px 10px;
@@ -207,7 +210,6 @@ tr:last-child td{border-bottom:none;}
     align-items:end;
   }
   .roundPts{grid-column: 1 / -1;}
-  table{min-width: 840px;}
 }
 
 /* Rules footer */
