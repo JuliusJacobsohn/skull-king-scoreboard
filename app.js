@@ -76,9 +76,13 @@
     return safeInt(bid) === safeInt(won);
   }
 
+  function bonusAllowed(bid, won){
+    return safeInt(bid) > 0 && hitTarget(bid, won);
+  }
+
   function totalRoundPoints(round, entry){
     const base = basePointsFor(round, entry.bid, entry.won);
-    const allowBonus = hitTarget(entry.bid, entry.won);
+    const allowBonus = bonusAllowed(entry.bid, entry.won);
     const pirates = allowBonus ? clamp(safeInt(entry.pirates), 0, MAX_PIRATES_BONUS) : 0;
     const mermaid = allowBonus ? !!entry.mermaid : false;
     return base + (pirates * 30) + (mermaid ? 50 : 0);
@@ -174,7 +178,7 @@
       const cur = state.current[p.id];
       const bidValue = clamp(safeInt(cur.bid), 0, state.round);
       const wonValue = clamp(safeInt(cur.won), 0, state.round);
-      const bonusEnabled = hitTarget(bidValue, wonValue);
+      const bonusEnabled = bonusAllowed(bidValue, wonValue);
       const piratesMax = Math.min(MAX_PIRATES_BONUS, wonValue);
       const piratesValue = clamp(safeInt(cur.pirates), 0, piratesMax);
       cur.bid = String(bidValue);
@@ -415,7 +419,7 @@
       const cur = state.current[p.id];
 
       const entry = { bid:cur.bid, won:cur.won, pirates:cur.pirates, mermaid:cur.mermaid };
-      const bonusApplies = hitTarget(entry.bid, entry.won);
+      const bonusApplies = bonusAllowed(entry.bid, entry.won);
       const pirates = bonusApplies ? clamp(safeInt(entry.pirates), 0, MAX_PIRATES_BONUS) : 0;
       const mermaid = bonusApplies ? !!entry.mermaid : false;
       const scored = { bid: entry.bid, won: entry.won, pirates, mermaid };
