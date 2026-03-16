@@ -72,10 +72,15 @@
     return (won === bid) ? (20 * bid) : (-10 * Math.abs(bid - won));
   }
 
+  function hitTarget(bid, won){
+    return safeInt(bid) === safeInt(won);
+  }
+
   function totalRoundPoints(round, entry){
     const base = basePointsFor(round, entry.bid, entry.won);
-    const pirates = clamp(safeInt(entry.pirates), 0, MAX_PIRATES_BONUS);
-    const mermaid = !!entry.mermaid;
+    const allowBonus = hitTarget(entry.bid, entry.won);
+    const pirates = allowBonus ? clamp(safeInt(entry.pirates), 0, MAX_PIRATES_BONUS) : 0;
+    const mermaid = allowBonus ? !!entry.mermaid : false;
     return base + (pirates * 30) + (mermaid ? 50 : 0);
   }
 
@@ -155,6 +160,7 @@
       const cur = state.current[p.id];
       const bidValue = clamp(safeInt(cur.bid), 0, state.round);
       const wonValue = clamp(safeInt(cur.won), 0, state.round);
+      const bonusEnabled = hitTarget(bidValue, wonValue);
       const piratesMax = Math.min(MAX_PIRATES_BONUS, wonValue);
       const piratesValue = clamp(safeInt(cur.pirates), 0, piratesMax);
       cur.bid = String(bidValue);
@@ -219,7 +225,8 @@
       fPir.appendChild(makeNumberButtons({
         min: 0,
         max: piratesMax,
-        selected: piratesValue,
+        selected: bonusEnabled ? piratesValue : 0,
+        disabled: !bonusEnabled,
         onPick: (v) => {
           cur.pirates = String(v);
           save(); renderEntries(); renderHistory();
@@ -230,8 +237,9 @@
       const fMer = el("div", { className:"field bonusMermaid" });
       fMer.appendChild(el("label", { textContent:"Mermaid (+50)" }));
       fMer.appendChild(makeToggleButton({
-        active: !!cur.mermaid,
+        active: bonusEnabled && !!cur.mermaid,
         text: "Mermaid beat SK",
+        disabled: !bonusEnabled,
         onToggle: () => {
           cur.mermaid = !cur.mermaid;
           save(); renderEntries(); renderHistory();
@@ -244,9 +252,9 @@
       list.appendChild(row);
     });
   }
-  function makeNumberButtons({ min, max, selected, onPick }){
+  function makeNumberButtons({ min, max, selected, onPick, disabled = false }){
     max = Math.max(min, max);
-    const wrap = el("div", { className:"numPad" });
+    const wrap = el("div", { className:"numPad" + (disabled ? " disabled" : "") });
     wrap.style.setProperty("--num-count", String(max - min + 1));
     for(let v = min; v <= max; v += 1){
       const b = el("button", {
@@ -254,19 +262,21 @@
         className: "numBtn" + (v === selected ? " active" : ""),
         textContent: String(v)
       });
+      b.disabled = !!disabled;
       b.onclick = () => onPick(v);
       wrap.appendChild(b);
     }
     return wrap;
   }
 
-  function makeToggleButton({ active, text, onToggle }){
+  function makeToggleButton({ active, text, onToggle, disabled = false }){
     const b = el("button", {
       type: "button",
       className: "numBtn toggleBtn" + (active ? " active" : ""),
       textContent: text
     });
     b.setAttribute("aria-pressed", active ? "true" : "false");
+    b.disabled = !!disabled;
     b.onclick = onToggle;
     return b;
   }
@@ -391,15 +401,19 @@
       const cur = state.current[p.id];
 
       const entry = { bid:cur.bid, won:cur.won, pirates:cur.pirates, mermaid:cur.mermaid };
-      const pts = totalRoundPoints(state.round, entry);
+      const bonusApplies = hitTarget(entry.bid, entry.won);
+      const pirates = bonusApplies ? clamp(safeInt(entry.pirates), 0, MAX_PIRATES_BONUS) : 0;
+      const mermaid = bonusApplies ? !!entry.mermaid : false;
+      const scored = { bid: entry.bid, won: entry.won, pirates, mermaid };
+      const pts = totalRoundPoints(state.round, scored);
 
       p.total += pts;
 
       rec.entries[p.id] = {
         bid: clamp(safeInt(entry.bid), 0, state.round),
         won: clamp(safeInt(entry.won), 0, state.round),
-        pirates: clamp(safeInt(entry.pirates), 0, MAX_PIRATES_BONUS),
-        mermaid: !!entry.mermaid,
+        pirates,
+        mermaid,
         pts
       };
       rec.totals[p.id] = p.total;
