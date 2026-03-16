@@ -2,30 +2,39 @@
 
 ## Skull King Scoreboard
 
-[Live site](https://juliusjacobsohn.github.io/skull-king-scoreboard/) — single-page, offline-friendly scoreboard for the Skull King card game.
+[Live site](https://juliusjacobsohn.github.io/skull-king-scoreboard/) - single-page, offline-friendly scoreboard for Skull King.
 
-### What it does
-- Manage players and order, then track bids, tricks won, pirates, and mermaid bonuses per round.
-- Scores are auto-calculated each round and totals are shown live.
-- Round history table keeps a log of points and running totals.
-- Data is saved to `localStorage` so a refresh or short disconnect does not lose your game.
+### Overview
+Skull King Scoreboard is a lightweight web app for tracking a Skull King game round by round.  
+It is designed for quick mobile use, works without a backend, and persists state locally in the browser.
 
-### How to use
-1) Add players on the setup screen (order matters for turn highlighting).  
-2) Hit **Start game** to switch to the scoring view.  
-3) For each round, enter Bid, Won, Pirates (+30 each), and Mermaid (+50 vs. Skull King).  
-4) Press **Round done** to lock the round, advance the round counter, and record history.  
-5) Use **New game** to clear everything and go back to player setup.
+### Features
+- Player setup with ordering (turn highlight follows player order).
+- Fast, tap-friendly round input for:
+  - Bid
+  - Won tricks
+  - Pirates bonus
+  - Mermaid bonus
+- Live round points preview and running totals.
+- Round history view with per-round points and totals.
+- Local persistence via `localStorage`.
+- New game reset with confirmation prompt.
 
-### Scoring reference
+### Usage
+1. Add players on the setup screen.  
+2. Start the game.  
+3. For each round, set Bid, Won, and optional bonuses for each player.  
+4. Press **Round done** to apply scoring and advance to the next round.  
+5. Open **History** to review previous rounds and totals.
+
+### Scoring
 - Bid > 0: exact = `20 * bid`; miss = `-10 * |bid - won|`.
 - Bid = 0: exact = `10 * round`; miss = `-10 * round`.
-- Bonuses: `+30` per pirate beaten by Skull King; `+50` if Mermaid beats Skull King.
-
-### Keyboard tips (desktop)
-- Tab order cycles per column (Bid → Won → Pirates → Mermaid) across players.
-- Shift+Tab moves backward; the last Mermaid input tabs to **Round done**.
+- Bonuses:
+  - Pirates: `+30` each (maximum 6).
+  - Mermaid vs Skull King: `+50`.
+  - Bonuses apply only when the bid is hit exactly (`won == bid`).
 
 ### Development
 - Pure HTML/CSS/JS with no build step or dependencies.
-- Edit `index.html` and open it directly in a browser to test changes.
+- Open `index.html` directly in a browser while editing.
