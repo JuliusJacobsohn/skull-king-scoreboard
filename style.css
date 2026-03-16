@@ -70,6 +70,27 @@ body{
   border-radius:var(--r);
   padding:10px;
 }
+.toolbarRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  flex-wrap:nowrap;
+}
+.row.actionRow{
+  display:flex;
+  flex-wrap:nowrap;
+  gap:6px;
+  width:auto;
+  margin-left:auto;
+}
+.actionRow button{
+  width:auto;
+  flex:0 0 auto;
+  padding:7px 9px;
+  font-size:12px;
+  white-space:nowrap;
+}
 
 .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
 .between{justify-content:space-between;}
@@ -218,7 +239,7 @@ tr:last-child td{border-bottom:none;}
 /* Layout spacing inside game view */
 #gameScreen{
   display:grid;
-  gap:16px;
+  gap:10px;
 }
 
 /* Desktop enhancements */
@@ -228,21 +249,44 @@ tr:last-child td{border-bottom:none;}
   .entryRow{padding:10px;}
   .inputs{gap:8px;}
   .numBtn{min-height:30px; font-size:12px;}
+  .actionRow button{padding:9px 11px; font-size:14px;}
 }
 
-/* Rules footer */
-.footer{
+.modalOverlay{
+  position:fixed;
+  inset:0;
+  z-index:30;
+  background:rgba(4,7,12,.92);
+  backdrop-filter:blur(8px);
+}
+.modalPage{
+  height:100dvh;
   width:100%;
-  padding:0 12px 18px;
+  display:grid;
+  grid-template-rows:auto 1fr;
+  padding:12px;
   padding-left:max(12px, env(safe-area-inset-left));
   padding-right:max(12px, env(safe-area-inset-right));
+  gap:10px;
 }
-details{
+.modalHead{
   border:1px solid var(--line);
   border-radius:var(--r);
-  background:rgba(0,0,0,.18);
+  background:rgba(0,0,0,.24);
   padding:10px 12px;
 }
-summary{cursor:pointer; font-weight:800; list-style:none;}
-summary::-webkit-details-marker{display:none;}
+.modalBody{
+  min-height:0;
+  border:1px solid var(--line);
+  border-radius:var(--r);
+  background:rgba(0,0,0,.22);
+  padding:10px;
+}
+.modalBody .histWrap{
+  height:100%;
+  margin-top:0;
+}
+body.modalOpen{
+  overflow:hidden;
+}
 .hidden{display:none !important;}

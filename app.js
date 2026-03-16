@@ -94,6 +94,7 @@
     if(state.mode === "setup"){
       setup.classList.remove("hidden");
       game.classList.add("hidden");
+      closeHistoryModal();
       renderSetup();
     } else {
       setup.classList.add("hidden");
@@ -142,6 +143,22 @@
 
     renderEntries();
     renderHistory();
+  }
+
+  function openHistoryModal(){
+    const modal = $("#historyModal");
+    if(!modal) return;
+    modal.classList.remove("hidden");
+    modal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modalOpen");
+  }
+
+  function closeHistoryModal(){
+    const modal = $("#historyModal");
+    if(!modal) return;
+    modal.classList.add("hidden");
+    modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("modalOpen");
   }
 
   function renderEntries(){
@@ -436,6 +453,10 @@
   $("#btnStart").onclick = startGame;
   $("#btnNewGame").onclick = newGame;
   $("#btnDone").onclick = roundDone;
+  $("#btnHistory").onclick = openHistoryModal;
+  $("#btnCloseHistory").onclick = closeHistoryModal;
+  $("#historyModal").addEventListener("click", (e) => { if(e.target.id === "historyModal") closeHistoryModal(); });
+  window.addEventListener("keydown", (e) => { if(e.key === "Escape") closeHistoryModal(); });
 
   // Initial render
   render();

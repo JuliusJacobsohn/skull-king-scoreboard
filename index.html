@@ -37,27 +37,32 @@
     <!-- GAME SCREEN -->
     <section id="gameScreen" class="hidden">
       <div class="card">
-        <div class="row between">
+        <div class="toolbarRow">
           <div class="row" style="gap:8px;">
             <span class="pill">Round <b id="roundLabel">1</b></span>
           </div>
-          <button id="btnNewGame" class="btnDanger">New game</button>
-        </div>
-
-        <!-- CURRENT ROUND INPUTS -->
-        <div class="row between" style="margin-top:10px;">
-          <h2>Current round</h2>
-          <button id="btnDone" class="btnAccent">Round done</button>
+          <div class="row actionRow">
+            <button id="btnDone" class="btnAccent">Round done</button>
+            <button id="btnHistory">History</button>
+            <button id="btnNewGame" class="btnDanger">New game</button>
+          </div>
         </div>
 
         <div id="entryList" class="entryList"></div>
       </div>
+    </section>
+  </div>
 
-      <div class="card">
-        <div class="row between">
+  <div id="historyModal" class="modalOverlay hidden" aria-hidden="true">
+    <div class="modalPage">
+      <div class="modalHead row between">
+        <div>
           <h2>History</h2>
           <div class="small mono" id="leaderLine"></div>
         </div>
+        <button id="btnCloseHistory">Close</button>
+      </div>
+      <div class="modalBody">
         <div class="histWrap">
           <table>
             <thead id="histHead"></thead>
@@ -65,18 +70,7 @@
           </table>
         </div>
       </div>
-    </section>
-  </div>
-
-  <div class="footer">
-    <details>
-      <summary>Scoring rules</summary>
-      <div class="small" style="margin-top:8px;">
-        Bid &gt; 0: exact = <span class="mono">20 * bid</span>, else <span class="mono">-10 * |bid - won|</span>.<br/>
-        Bid = 0: exact = <span class="mono">10 * round</span>, else <span class="mono">-10 * round</span>.<br/>
-        Bonuses: <span class="mono">+30</span> per pirate beaten by Skull King, <span class="mono">+50</span> if Mermaid beats Skull King.
-      </div>
-    </details>
+    </div>
   </div>
 
   <script src="app.js" defer></script>
