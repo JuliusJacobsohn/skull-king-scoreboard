@@ -85,9 +85,6 @@
   }
 
   function render(){
-    // top pills
-    $("#roundLabelTop").textContent = String(state.round);
-
     // screen toggle
     const setup = $("#setupScreen");
     const game = $("#gameScreen");
