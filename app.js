@@ -7,8 +7,8 @@
   const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
   const MAX_PIRATES_BONUS = 6;
   const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2)));
-  const SVG_NS = "http://www.w3.org/2000/svg";
   let historyTab = "history";
+  let historyChart = null;
 
   const DEFAULT = {
     mode: "setup",      // "setup" | "game"
@@ -89,12 +89,6 @@
     const pirates = allowBonus ? clamp(safeInt(entry.pirates), 0, MAX_PIRATES_BONUS) : 0;
     const mermaid = allowBonus ? !!entry.mermaid : false;
     return base + (pirates * 30) + (mermaid ? 50 : 0);
-  }
-
-  function svgEl(tag, attrs = {}){
-    const node = document.createElementNS(SVG_NS, tag);
-    for(const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
-    return node;
   }
 
   function playerColor(index){
@@ -215,7 +209,7 @@
 
     renderEntries();
     renderHistory();
-    renderGraph();
+    if(historyTab === "graph" && !$("#historyModal").classList.contains("hidden")) renderGraph();
   }
 
   function openHistoryModal(){
@@ -233,6 +227,10 @@
     modal.classList.add("hidden");
     modal.setAttribute("aria-hidden", "true");
     document.body.classList.remove("modalOpen");
+    if(historyChart){
+      historyChart.destroy();
+      historyChart = null;
+    }
   }
 
   function renderEntries(){
@@ -435,165 +433,140 @@
   }
 
   function renderGraph(){
-    const svg = $("#histGraph");
-    const legend = $("#graphLegend");
-    if(!svg || !legend) return;
+    const canvas = $("#histGraphCanvas");
+    if(!canvas) return;
+    if(typeof Chart === "undefined") return;
 
-    svg.innerHTML = "";
-    legend.innerHTML = "";
-
-    const width = 1000;
-    const height = 520;
-    const pad = { left: 70, right: 24, top: 24, bottom: 58 };
-    const plotW = width - pad.left - pad.right;
-    const plotH = height - pad.top - pad.bottom;
-
-    for(let i = 0; i < state.players.length; i += 1){
-      const p = state.players[i];
-      const item = el("div", { className:"legendItem" });
-      const dot = el("span", { className:"legendDot" });
-      dot.style.background = playerColor(i);
-      item.appendChild(dot);
-      item.appendChild(el("span", { textContent:p.name }));
-      legend.appendChild(item);
+    if(historyChart){
+      historyChart.destroy();
+      historyChart = null;
     }
 
     if(state.players.length === 0 || state.done.length === 0){
-      const msg = state.players.length === 0 ? "No players." : "No completed rounds yet.";
-      svg.appendChild(svgEl("text", {
-        x: width / 2,
-        y: height / 2,
-        "text-anchor": "middle",
-        "font-size": 28,
-        "font-family": "var(--mono)",
-        fill: "var(--muted)"
-      }));
-      svg.lastChild.textContent = msg;
+      const ctx = canvas.getContext("2d");
+      if(!ctx) return;
+      const dpr = window.devicePixelRatio || 1;
+      const cssWidth = Math.max(1, canvas.clientWidth);
+      const cssHeight = Math.max(1, canvas.clientHeight);
+      canvas.width = Math.floor(cssWidth * dpr);
+      canvas.height = Math.floor(cssHeight * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, cssWidth, cssHeight);
+      ctx.fillStyle = "#9fb0c7";
+      ctx.font = "600 14px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(
+        state.players.length === 0 ? "No players." : "No completed rounds yet.",
+        cssWidth / 2,
+        cssHeight / 2
+      );
       return;
     }
 
-    const rounds = state.done.map((r, idx) => safeInt(r.round) || (idx + 1));
-    const allTotals = [0];
-    for(const r of state.done){
-      for(const p of state.players){
-        const tot = r.totals?.[p.id];
-        if(typeof tot === "number") allTotals.push(tot);
-      }
-    }
-
-    let yMin = Math.min(...allTotals);
-    let yMax = Math.max(...allTotals);
-    if(yMin === yMax){
-      yMin -= 10;
-      yMax += 10;
-    }
-
-    const mapX = (i) => {
-      if(rounds.length <= 1) return pad.left + (plotW / 2);
-      return pad.left + (i / (rounds.length - 1)) * plotW;
-    };
-    const mapY = (v) => pad.top + ((yMax - v) / (yMax - yMin)) * plotH;
-
-    const yTicks = 5;
-    for(let t = 0; t < yTicks; t += 1){
-      const ratio = t / (yTicks - 1);
-      const y = pad.top + ratio * plotH;
-      const value = Math.round(yMax - ratio * (yMax - yMin));
-
-      svg.appendChild(svgEl("line", {
-        x1: pad.left,
-        y1: y,
-        x2: pad.left + plotW,
-        y2: y,
-        stroke: "rgba(255,255,255,0.10)",
-        "stroke-width": 1
-      }));
-
-      const label = svgEl("text", {
-        x: pad.left - 10,
-        y: y + 4,
-        "text-anchor": "end",
-        "font-size": 19,
-        "font-family": "var(--mono)",
-        fill: "var(--muted)"
-      });
-      label.textContent = String(value);
-      svg.appendChild(label);
-    }
-
-    const xLabelStep = Math.max(1, Math.ceil(rounds.length / 10));
-    for(let i = 0; i < rounds.length; i += 1){
-      const isLast = i === rounds.length - 1;
-      if(i % xLabelStep !== 0 && !isLast) continue;
-      const x = mapX(i);
-
-      svg.appendChild(svgEl("line", {
-        x1: x,
-        y1: pad.top,
-        x2: x,
-        y2: pad.top + plotH,
-        stroke: "rgba(255,255,255,0.08)",
-        "stroke-width": 1
-      }));
-
-      const lbl = svgEl("text", {
-        x,
-        y: pad.top + plotH + 24,
-        "text-anchor": "middle",
-        "font-size": 18,
-        "font-family": "var(--mono)",
-        fill: "var(--muted)"
-      });
-      lbl.textContent = String(rounds[i]);
-      svg.appendChild(lbl);
-    }
-
-    if(yMin < 0 && yMax > 0){
-      svg.appendChild(svgEl("line", {
-        x1: pad.left,
-        y1: mapY(0),
-        x2: pad.left + plotW,
-        y2: mapY(0),
-        stroke: "rgba(255,255,255,0.28)",
-        "stroke-width": 2
-      }));
-    }
-
-    state.players.forEach((p, idx) => {
+    const labels = state.done.map((r, idx) => String(safeInt(r.round) || (idx + 1)));
+    const datasets = state.players.map((p, idx) => {
       const color = playerColor(idx);
-      let path = "";
-      let lastX = 0;
-      let lastY = 0;
-      let hasPoint = false;
+      return {
+        label: p.name,
+        data: state.done.map((r) => {
+          const total = r.totals?.[p.id];
+          return (typeof total === "number") ? total : null;
+        }),
+        borderColor: color,
+        backgroundColor: color,
+        borderWidth: 3,
+        pointRadius: 2.5,
+        pointHoverRadius: 5,
+        pointHitRadius: 16,
+        tension: 0.25,
+        spanGaps: true
+      };
+    });
 
-      state.done.forEach((r, roundIdx) => {
-        const total = r.totals?.[p.id];
-        if(typeof total !== "number") return;
-        const x = mapX(roundIdx);
-        const y = mapY(total);
-        path += hasPoint ? ` L ${x} ${y}` : `M ${x} ${y}`;
-        hasPoint = true;
-        lastX = x;
-        lastY = y;
-      });
+    const allValues = datasets.flatMap((ds) => ds.data.filter((v) => typeof v === "number"));
+    const yMin = allValues.length ? Math.min(0, ...allValues) : 0;
+    const yMax = allValues.length ? Math.max(0, ...allValues) : 0;
+    const yPadding = Math.max(10, Math.ceil((yMax - yMin) * 0.12));
 
-      if(!hasPoint) return;
-
-      svg.appendChild(svgEl("path", {
-        d: path,
-        fill: "none",
-        stroke: color,
-        "stroke-width": 4,
-        "stroke-linecap": "round",
-        "stroke-linejoin": "round"
-      }));
-
-      svg.appendChild(svgEl("circle", {
-        cx: lastX,
-        cy: lastY,
-        r: 4.5,
-        fill: color
-      }));
+    const ctx = canvas.getContext("2d");
+    if(!ctx) return;
+    historyChart = new Chart(ctx, {
+      type: "line",
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        interaction: {
+          mode: "nearest",
+          intersect: false
+        },
+        plugins: {
+          legend: {
+            display: true,
+            position: "bottom",
+            labels: {
+              color: "#e7eef9",
+              boxWidth: 14,
+              boxHeight: 3,
+              padding: 14,
+              usePointStyle: false,
+              font: { size: 11 }
+            }
+          },
+          tooltip: {
+            enabled: true
+          }
+        },
+        layout: {
+          padding: { left: 6, right: 8, top: 8, bottom: 0 }
+        },
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: "Round",
+              color: "#9fb0c7",
+              font: { size: 11, weight: "700" }
+            },
+            ticks: {
+              color: "#9fb0c7",
+              autoSkip: true,
+              maxTicksLimit: 10,
+              maxRotation: 0,
+              font: { size: 10 }
+            },
+            grid: {
+              color: "rgba(255,255,255,0.08)"
+            },
+            border: {
+              color: "rgba(255,255,255,0.16)"
+            }
+          },
+          y: {
+            suggestedMin: yMin - yPadding,
+            suggestedMax: yMax + yPadding,
+            title: {
+              display: true,
+              text: "Score",
+              color: "#9fb0c7",
+              font: { size: 11, weight: "700" }
+            },
+            ticks: {
+              color: "#9fb0c7",
+              precision: 0,
+              font: { size: 10 }
+            },
+            grid: {
+              color: "rgba(255,255,255,0.10)"
+            },
+            border: {
+              color: "rgba(255,255,255,0.16)"
+            }
+          }
+        }
+      }
     });
   }
 
@@ -708,7 +681,7 @@
   window.addEventListener("resize", () => {
     if(state.mode !== "game") return;
     renderEntries();
-    renderGraph();
+    if(historyTab === "graph" && !$("#historyModal").classList.contains("hidden")) renderGraph();
   });
 
 })();

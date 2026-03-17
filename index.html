@@ -70,14 +70,14 @@
         </div>
         <div id="tabPanelGraph" class="tabPanel hidden" role="tabpanel">
           <div class="graphWrap">
-            <svg id="histGraph" viewBox="0 0 1000 520" preserveAspectRatio="none" aria-label="Score progression graph"></svg>
+            <canvas id="histGraphCanvas" aria-label="Score progression graph"></canvas>
           </div>
-          <div id="graphLegend" class="graphLegend"></div>
         </div>
       </div>
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>
