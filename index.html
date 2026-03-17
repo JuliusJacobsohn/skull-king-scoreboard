@@ -56,11 +56,23 @@
         <button id="btnCloseHistory">Close</button>
       </div>
       <div class="modalBody">
-        <div class="histWrap">
-          <table>
-            <thead id="histHead"></thead>
-            <tbody id="histBody"></tbody>
-          </table>
+        <div class="histTabs" role="tablist" aria-label="History views">
+          <button id="btnTabHistory" class="tabBtn active" role="tab" aria-selected="true" aria-controls="tabPanelHistory">History</button>
+          <button id="btnTabGraph" class="tabBtn" role="tab" aria-selected="false" aria-controls="tabPanelGraph">Graph</button>
+        </div>
+        <div id="tabPanelHistory" class="tabPanel" role="tabpanel">
+          <div class="histWrap">
+            <table>
+              <thead id="histHead"></thead>
+              <tbody id="histBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="tabPanelGraph" class="tabPanel hidden" role="tabpanel">
+          <div class="graphWrap">
+            <svg id="histGraph" viewBox="0 0 1000 520" preserveAspectRatio="none" aria-label="Score progression graph"></svg>
+          </div>
+          <div id="graphLegend" class="graphLegend"></div>
         </div>
       </div>
     </div>
