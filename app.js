@@ -51,7 +51,7 @@
 
   function ensureCurrent(s, pid){
     if(!s.current[pid]){
-      s.current[pid] = { bid:"0", won:"0", pirates:"0", mermaid:false };
+      s.current[pid] = { bid:"0", won:"0", pirates:"0", mermaid:false, wonTouched:false };
       return;
     }
     const c = s.current[pid];
@@ -59,6 +59,7 @@
     if(c.won === undefined || c.won === "") c.won = "0";
     if(c.pirates === undefined || c.pirates === "") c.pirates = "0";
     if(typeof c.mermaid !== "boolean") c.mermaid = !!c.mermaid;
+    if(typeof c.wonTouched !== "boolean") c.wonTouched = false;
   }
 
   function turnIndex(){
@@ -86,6 +87,41 @@
     const pirates = allowBonus ? clamp(safeInt(entry.pirates), 0, MAX_PIRATES_BONUS) : 0;
     const mermaid = allowBonus ? !!entry.mermaid : false;
     return base + (pirates * 30) + (mermaid ? 50 : 0);
+  }
+
+  function autoFillLastWon(){
+    if(state.players.length === 0) return false;
+
+    let touchedCount = 0;
+    let touchedSum = 0;
+    let untouchedPid = null;
+    let untouchedCount = 0;
+
+    for(const p of state.players){
+      ensureCurrent(state, p.id);
+      const cur = state.current[p.id];
+      if(cur.wonTouched){
+        touchedCount += 1;
+        touchedSum += clamp(safeInt(cur.won), 0, state.round);
+      } else {
+        untouchedCount += 1;
+        untouchedPid = p.id;
+      }
+    }
+
+    if(touchedCount !== state.players.length - 1 || untouchedCount !== 1) return false;
+
+    const remaining = state.round - touchedSum;
+    if(remaining < 0 || remaining > state.round) return false;
+
+    const target = state.current[untouchedPid];
+    const nextWon = String(remaining);
+    const nextPirates = String(clamp(safeInt(target.pirates), 0, Math.min(MAX_PIRATES_BONUS, remaining)));
+    if(target.won === nextWon && target.pirates === nextPirates) return false;
+
+    target.won = nextWon;
+    target.pirates = nextPirates;
+    return true;
   }
 
   function render(){
@@ -172,6 +208,8 @@
     }
 
     const tIdx = turnIndex();
+    const changedByAutoFill = autoFillLastWon();
+    if(changedByAutoFill) save();
 
     state.players.forEach((p, idx) => {
       ensureCurrent(state, p.id);
@@ -229,6 +267,8 @@
         selected: wonValue,
         onPick: (v) => {
           cur.won = String(v);
+          cur.wonTouched = true;
+          autoFillLastWon();
           const maxPirates = Math.min(MAX_PIRATES_BONUS, v);
           cur.pirates = String(clamp(safeInt(cur.pirates), 0, maxPirates));
           save(); renderEntries(); renderHistory();
