@@ -83,7 +83,7 @@
       entryWon: "Stiche",
       entryPirates: "Piraten (+30)",
       entryMermaid: "Meerjungfrau (+50)",
-      entryMermaidToggle: "Meerjungfrau schlug SK",
+      entryMermaidToggle: "MJF schlug SK",
       histRoundHeader: "Runde",
       histNoHistory: "Kein Verlauf.",
       histNoCompleted: "Noch keine abgeschlossenen Runden.",
