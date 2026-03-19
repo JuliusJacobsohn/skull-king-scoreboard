@@ -90,6 +90,53 @@
     </div>
   </div>
 
+  <div id="archiveModal" class="modalOverlay hidden" aria-hidden="true">
+    <div class="modalPage">
+      <div class="modalHead row between">
+        <div>
+          <h2 id="archiveTitle">Game archive</h2>
+          <div class="small mono" id="archiveSummaryLine"></div>
+        </div>
+        <button id="btnCloseArchive">Close</button>
+      </div>
+      <div class="modalBody">
+        <div id="archiveTabs" class="histTabs" role="tablist" aria-label="Archive views">
+          <button id="btnTabArchiveGames" class="tabBtn active" role="tab" aria-selected="true" aria-controls="tabPanelArchiveGames">Games</button>
+          <button id="btnTabArchiveStats" class="tabBtn" role="tab" aria-selected="false" aria-controls="tabPanelArchiveStats">Player statistics</button>
+        </div>
+        <div id="tabPanelArchiveGames" class="tabPanel" role="tabpanel">
+          <div id="archiveGamesList" class="archiveGamesList"></div>
+        </div>
+        <div id="tabPanelArchiveStats" class="tabPanel hidden" role="tabpanel">
+          <div class="row between statsFilterRow">
+            <label id="statsPlayerLabel" for="statsPlayerSelect" class="small">Player for details</label>
+            <select id="statsPlayerSelect"></select>
+          </div>
+          <div class="histWrap">
+            <table>
+              <thead id="statsHead"></thead>
+              <tbody id="statsBody"></tbody>
+            </table>
+          </div>
+          <div class="statsCharts">
+            <div class="statsChartCard">
+              <canvas id="statsWinLossCanvas"></canvas>
+            </div>
+            <div class="statsChartCard">
+              <canvas id="statsPointsCanvas"></canvas>
+            </div>
+            <div class="statsChartCard">
+              <canvas id="statsTrendCanvas"></canvas>
+            </div>
+            <div class="statsChartCard">
+              <canvas id="statsPositionCanvas"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
   <script src="app.js" defer></script>
 </body>

@@ -33,6 +33,39 @@
       historyTabHistory: "History",
       historyTabGraph: "Graph",
       historyGraphAriaLabel: "Score progression graph",
+      archiveTitle: "Game archive",
+      archiveClose: "Close",
+      archiveViewsAriaLabel: "Archive views",
+      archiveTabGames: "Games",
+      archiveTabStats: "Player statistics",
+      archiveNoGames: "No saved games yet.",
+      archiveSummaryLine: "{games} games | {players} players",
+      archivePlayedAt: "Played",
+      archiveRounds: "Rounds",
+      archivePlayers: "Players",
+      archiveWinners: "Winners",
+      archiveTopScore: "Top score",
+      archiveRoundHeader: "Round",
+      statsPlayerLabel: "Player for details",
+      statsNoData: "No archived games yet.",
+      statsHeaderPlayer: "Player",
+      statsHeaderGames: "Games",
+      statsHeaderWon: "Won",
+      statsHeaderLost: "Lost",
+      statsHeaderWinRate: "Win %",
+      statsHeaderMax: "Max",
+      statsHeaderAvg: "Avg",
+      statsHeaderMin: "Min",
+      statsHeaderTotal: "Total",
+      statsHeaderAvgRank: "Avg rank",
+      statsChartWinLoss: "Wins vs losses",
+      statsChartPoints: "Min / Avg / Max points",
+      statsChartTrend: "Score trend",
+      statsChartPositions: "Finish positions",
+      statsAxisGames: "Games",
+      statsAxisPoints: "Points",
+      statsAxisRank: "Rank",
+      statsPositionPrefix: "Position",
       entryNoPlayers: "No players.",
       entryTotal: "Total",
       entryRound: "Round",
@@ -117,6 +150,14 @@
   let language = loadLanguage();
   let historyTab = "history";
   let historyChart = null;
+  let archiveTab = "games";
+  let statsSelectedPlayer = "";
+  let statsCharts = {
+    winLoss: null,
+    points: null,
+    trend: null,
+    positions: null
+  };
 
   const DEFAULT = {
     mode: "setup",
@@ -130,12 +171,21 @@
 
   let state = load();
   let archivedGames = loadArchive();
+  saveArchive();
 
   function t(key){
     const table = I18N[language] || I18N.en;
     if(Object.prototype.hasOwnProperty.call(table, key)) return table[key];
     if(Object.prototype.hasOwnProperty.call(I18N.en, key)) return I18N.en[key];
     return key;
+  }
+
+  function tf(key, values = {}){
+    let text = String(t(key));
+    for(const [k, v] of Object.entries(values)){
+      text = text.replaceAll(`{${k}}`, String(v));
+    }
+    return text;
   }
 
   function loadLanguage(){
@@ -301,6 +351,15 @@
     if(node) node.textContent = value;
   }
 
+  function syncModalOpenClass(){
+    const historyModal = $("#historyModal");
+    const archiveModal = $("#archiveModal");
+    const historyOpen = !!historyModal && !historyModal.classList.contains("hidden");
+    const archiveOpen = !!archiveModal && !archiveModal.classList.contains("hidden");
+    const anyOpen = historyOpen || archiveOpen;
+    document.body.classList.toggle("modalOpen", !!anyOpen);
+  }
+
   function renderLanguageSelector(){
     const select = $("#languageSelect");
     if(!select) return;
@@ -335,6 +394,11 @@
     setText("#btnCloseHistory", t("historyClose"));
     setText("#btnTabHistory", t("historyTabHistory"));
     setText("#btnTabGraph", t("historyTabGraph"));
+    setText("#archiveTitle", t("archiveTitle"));
+    setText("#btnCloseArchive", t("archiveClose"));
+    setText("#btnTabArchiveGames", t("archiveTabGames"));
+    setText("#btnTabArchiveStats", t("archiveTabStats"));
+    setText("#statsPlayerLabel", t("statsPlayerLabel"));
 
     const input = $("#playerName");
     if(input) input.placeholder = t("setupPlayerPlaceholder");
@@ -344,6 +408,9 @@
 
     const graphCanvas = $("#histGraphCanvas");
     if(graphCanvas) graphCanvas.setAttribute("aria-label", t("historyGraphAriaLabel"));
+
+    const archiveTabs = $("#archiveTabs");
+    if(archiveTabs) archiveTabs.setAttribute("aria-label", t("archiveViewsAriaLabel"));
 
     renderLanguageSelector();
   }
@@ -400,6 +467,28 @@
 
   function normalizeName(name){
     return String(name || "").trim().toLowerCase();
+  }
+
+  function parseStamp(value){
+    if(typeof value === "number" && Number.isFinite(value)) return value;
+    const stamp = Date.parse(String(value || ""));
+    return Number.isFinite(stamp) ? stamp : 0;
+  }
+
+  function formatStamp(value){
+    const stamp = parseStamp(value);
+    if(!stamp) return "-";
+    return new Intl.DateTimeFormat(language, {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    }).format(new Date(stamp));
+  }
+
+  function archiveSortStamp(game){
+    return parseStamp(game?.finishedAt || game?.updatedAt || game?.startedAt);
   }
 
   function getRecentPlayers(limit = 5){
@@ -547,6 +636,8 @@
       game.classList.remove("hidden");
       renderGame();
     }
+
+    if(!$("#archiveModal").classList.contains("hidden")) renderArchiveModal();
   }
 
   function renderSetup(){
@@ -625,7 +716,7 @@
     if(!modal) return;
     modal.classList.remove("hidden");
     modal.setAttribute("aria-hidden", "false");
-    document.body.classList.add("modalOpen");
+    syncModalOpenClass();
     setHistoryTab(historyTab);
   }
 
@@ -634,7 +725,7 @@
     if(!modal) return;
     modal.classList.add("hidden");
     modal.setAttribute("aria-hidden", "true");
-    document.body.classList.remove("modalOpen");
+    syncModalOpenClass();
     if(historyChart){
       historyChart.destroy();
       historyChart = null;
@@ -990,6 +1081,561 @@
     });
   }
 
+  function getSortedArchivedGames(){
+    return [...archivedGames].sort((a, b) => archiveSortStamp(b) - archiveSortStamp(a));
+  }
+
+  function uniqueArchivedPlayers(games){
+    const seen = new Set();
+    const names = [];
+    for(const game of games){
+      for(const name of game.players || []){
+        const key = normalizeName(name);
+        if(!key || seen.has(key)) continue;
+        seen.add(key);
+        names.push(name);
+      }
+    }
+    return names;
+  }
+
+  function setArchiveTab(tab){
+    archiveTab = (tab === "stats") ? "stats" : "games";
+
+    const btnGames = $("#btnTabArchiveGames");
+    const btnStats = $("#btnTabArchiveStats");
+    const panelGames = $("#tabPanelArchiveGames");
+    const panelStats = $("#tabPanelArchiveStats");
+    const showingGames = archiveTab === "games";
+
+    if(btnGames){
+      btnGames.classList.toggle("active", showingGames);
+      btnGames.setAttribute("aria-selected", showingGames ? "true" : "false");
+    }
+    if(btnStats){
+      btnStats.classList.toggle("active", !showingGames);
+      btnStats.setAttribute("aria-selected", showingGames ? "false" : "true");
+    }
+    if(panelGames) panelGames.classList.toggle("hidden", !showingGames);
+    if(panelStats) panelStats.classList.toggle("hidden", showingGames);
+
+    if(!showingGames){
+      const stats = computePlayerStats(getSortedArchivedGames());
+      renderStatsCharts(stats);
+    }
+  }
+
+  function openArchiveModal(tab = "games"){
+    const modal = $("#archiveModal");
+    if(!modal) return;
+    modal.classList.remove("hidden");
+    modal.setAttribute("aria-hidden", "false");
+    syncModalOpenClass();
+    renderArchiveModal();
+    setArchiveTab(tab);
+  }
+
+  function closeArchiveModal(){
+    const modal = $("#archiveModal");
+    if(!modal) return;
+    modal.classList.add("hidden");
+    modal.setAttribute("aria-hidden", "true");
+    destroyStatsCharts();
+    syncModalOpenClass();
+  }
+
+  function destroyStatsCharts(){
+    for(const key of Object.keys(statsCharts)){
+      if(statsCharts[key]){
+        statsCharts[key].destroy();
+        statsCharts[key] = null;
+      }
+    }
+  }
+
+  function renderArchiveModal(){
+    const games = getSortedArchivedGames();
+    const uniquePlayers = uniqueArchivedPlayers(games).length;
+    setText("#archiveSummaryLine", tf("archiveSummaryLine", { games: games.length, players: uniquePlayers }));
+    renderArchiveGamesList(games);
+    const stats = computePlayerStats(games);
+    renderStatsTable(stats);
+    populateStatsPlayerSelect(stats);
+    if(archiveTab === "stats") renderStatsCharts(stats);
+  }
+
+  function renderArchiveGamesList(games){
+    const list = $("#archiveGamesList");
+    if(!list) return;
+    list.innerHTML = "";
+
+    if(games.length === 0){
+      list.appendChild(el("div", { className: "small", textContent: t("archiveNoGames") }));
+      return;
+    }
+
+    for(const game of games){
+      const card = el("details", { className: "archiveGameCard" });
+      const summary = el("summary", { className: "archiveGameSummary" });
+      const top = el("div", { className: "archiveGameSummaryTop" });
+      top.appendChild(el("div", {
+        className: "archiveGameTitle",
+        textContent: `${t("archivePlayedAt")}: ${formatStamp(game.finishedAt || game.updatedAt || game.startedAt)}`
+      }));
+      top.appendChild(el("div", {
+        className: "archiveGameMeta",
+        textContent: `${t("archiveRounds")}: ${safeInt(game.roundsPlayed)}`
+      }));
+      summary.appendChild(top);
+      summary.appendChild(el("div", {
+        className: "archiveGameMeta",
+        textContent: `${t("archivePlayers")}: ${(game.players || []).join(", ")}`
+      }));
+      card.appendChild(summary);
+
+      const detail = el("div", { className: "archiveGameDetail" });
+      const topScore = (game.finalTotals || []).reduce((mx, row) => Math.max(mx, safeInt(row.total)), Number.NEGATIVE_INFINITY);
+      detail.appendChild(el("div", {
+        className: "archiveStatsLine",
+        textContent: `${t("archiveWinners")}: ${(game.winners || []).join(", ") || "-"} | ${t("archiveTopScore")}: ${Number.isFinite(topScore) ? signed(topScore) : "-"}`
+      }));
+
+      const rounds = Array.isArray(game.rounds) ? game.rounds : [];
+      if(rounds.length > 0){
+        const wrap = el("div", { className: "histWrap" });
+        const table = el("table");
+        const thead = el("thead");
+        const tbody = el("tbody");
+
+        const trh = el("tr");
+        trh.appendChild(el("th", { textContent: t("archiveRoundHeader"), style: "min-width:70px;" }));
+        for(const playerName of (game.players || [])){
+          trh.appendChild(el("th", { className: "right", textContent: playerName }));
+        }
+        thead.appendChild(trh);
+
+        for(const round of rounds){
+          const tr = el("tr");
+          tr.appendChild(el("td", { className: "mono", textContent: String(safeInt(round.round)) }));
+
+          for(const playerName of (game.players || [])){
+            const entry = (round.entries || []).find((e) => normalizeName(e.name) === normalizeName(playerName));
+            const td = el("td", { className: "right" });
+            if(!entry){
+              td.appendChild(el("div", { className: "cellPts", textContent: t("histMissing") }));
+            } else {
+              td.appendChild(el("div", {
+                className: "cellPts " + (safeInt(entry.pts) >= 0 ? "pos" : "neg"),
+                textContent: signed(safeInt(entry.pts))
+              }));
+              td.appendChild(el("div", {
+                className: "cellTot",
+                textContent: `${t("histTotal")} ${signed(safeInt(entry.total))}`
+              }));
+            }
+            tr.appendChild(td);
+          }
+
+          tbody.appendChild(tr);
+        }
+
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        detail.appendChild(wrap);
+      }
+
+      card.appendChild(detail);
+      list.appendChild(card);
+    }
+  }
+
+  function computePlayerStats(games){
+    const byPlayer = new Map();
+
+    for(const game of games){
+      const totals = Array.isArray(game.finalTotals) ? game.finalTotals : [];
+      if(totals.length === 0) continue;
+
+      const sortedTotals = [...totals].sort((a, b) => {
+        const diff = safeInt(b.total) - safeInt(a.total);
+        return diff !== 0 ? diff : String(a.name || "").localeCompare(String(b.name || ""));
+      });
+
+      const winnerNames = (Array.isArray(game.winners) && game.winners.length > 0)
+        ? game.winners
+        : sortedTotals.filter((row) => safeInt(row.total) === safeInt(sortedTotals[0].total)).map((row) => row.name);
+      const winnerSet = new Set(winnerNames.map((name) => normalizeName(name)));
+      const rankByPlayer = new Map();
+
+      let prevScore = null;
+      let currentRank = 0;
+      for(let i = 0; i < sortedTotals.length; i += 1){
+        const row = sortedTotals[i];
+        const score = safeInt(row.total);
+        if(prevScore === null || score < prevScore){
+          currentRank = i + 1;
+          prevScore = score;
+        }
+        rankByPlayer.set(normalizeName(row.name), currentRank);
+      }
+
+      const stamp = archiveSortStamp(game);
+      for(const row of totals){
+        const name = String(row.name || "").trim();
+        const key = normalizeName(name);
+        if(!key) continue;
+        const score = safeInt(row.total);
+
+        if(!byPlayer.has(key)){
+          byPlayer.set(key, {
+            key,
+            name,
+            gamesPlayed: 0,
+            wins: 0,
+            losses: 0,
+            totalPoints: 0,
+            maxPoints: Number.NEGATIVE_INFINITY,
+            minPoints: Number.POSITIVE_INFINITY,
+            rankSum: 0,
+            scoreHistory: [],
+            positionCounts: {}
+          });
+        }
+
+        const stat = byPlayer.get(key);
+        stat.name = name;
+        stat.gamesPlayed += 1;
+        stat.totalPoints += score;
+        stat.maxPoints = Math.max(stat.maxPoints, score);
+        stat.minPoints = Math.min(stat.minPoints, score);
+
+        const isWinner = winnerSet.has(key);
+        if(isWinner) stat.wins += 1;
+        else stat.losses += 1;
+
+        const rank = rankByPlayer.get(key) || sortedTotals.length;
+        stat.rankSum += rank;
+        stat.scoreHistory.push({ stamp, score });
+        stat.positionCounts[rank] = safeInt(stat.positionCounts[rank]) + 1;
+      }
+    }
+
+    const stats = [...byPlayer.values()].map((s) => {
+      const gamesPlayed = Math.max(1, s.gamesPlayed);
+      return {
+        ...s,
+        avgPoints: s.totalPoints / gamesPlayed,
+        avgRank: s.rankSum / gamesPlayed,
+        winRate: (s.wins / gamesPlayed) * 100
+      };
+    });
+
+    stats.sort((a, b) => {
+      const gameDiff = b.gamesPlayed - a.gamesPlayed;
+      if(gameDiff !== 0) return gameDiff;
+      const winDiff = b.wins - a.wins;
+      if(winDiff !== 0) return winDiff;
+      return b.avgPoints - a.avgPoints;
+    });
+
+    return stats;
+  }
+
+  function populateStatsPlayerSelect(stats){
+    const select = $("#statsPlayerSelect");
+    if(!select) return;
+
+    const keys = new Set(stats.map((s) => s.key));
+    if(!statsSelectedPlayer || !keys.has(statsSelectedPlayer)){
+      statsSelectedPlayer = stats[0]?.key || "";
+    }
+
+    select.innerHTML = "";
+    for(const stat of stats){
+      select.appendChild(el("option", {
+        value: stat.key,
+        textContent: stat.name
+      }));
+    }
+    if(statsSelectedPlayer) select.value = statsSelectedPlayer;
+  }
+
+  function renderStatsTable(stats){
+    const head = $("#statsHead");
+    const body = $("#statsBody");
+    if(!head || !body) return;
+
+    head.innerHTML = "";
+    body.innerHTML = "";
+
+    const trh = el("tr");
+    trh.appendChild(el("th", { textContent: t("statsHeaderPlayer"), style: "min-width:140px;" }));
+    trh.appendChild(el("th", { className: "right", textContent: t("statsHeaderGames") }));
+    trh.appendChild(el("th", { className: "right", textContent: t("statsHeaderWon") }));
+    trh.appendChild(el("th", { className: "right", textContent: t("statsHeaderLost") }));
+    trh.appendChild(el("th", { className: "right", textContent: t("statsHeaderWinRate") }));
+    trh.appendChild(el("th", { className: "right", textContent: t("statsHeaderMax") }));
+    trh.appendChild(el("th", { className: "right", textContent: t("statsHeaderAvg") }));
+    trh.appendChild(el("th", { className: "right", textContent: t("statsHeaderMin") }));
+    trh.appendChild(el("th", { className: "right", textContent: t("statsHeaderTotal") }));
+    trh.appendChild(el("th", { className: "right", textContent: t("statsHeaderAvgRank") }));
+    head.appendChild(trh);
+
+    if(stats.length === 0){
+      const tr = el("tr");
+      tr.appendChild(el("td", {
+        className: "small",
+        colSpan: 10,
+        textContent: t("statsNoData")
+      }));
+      body.appendChild(tr);
+      return;
+    }
+
+    for(const stat of stats){
+      const tr = el("tr");
+      tr.appendChild(el("td", { className: "mono", textContent: stat.name }));
+      tr.appendChild(el("td", { className: "right mono", textContent: String(stat.gamesPlayed) }));
+      tr.appendChild(el("td", { className: "right mono pos", textContent: String(stat.wins) }));
+      tr.appendChild(el("td", { className: "right mono neg", textContent: String(stat.losses) }));
+      tr.appendChild(el("td", { className: "right mono", textContent: `${stat.winRate.toFixed(1)}%` }));
+      tr.appendChild(el("td", { className: "right mono", textContent: signed(stat.maxPoints) }));
+      tr.appendChild(el("td", { className: "right mono", textContent: signed(Math.round(stat.avgPoints * 10) / 10) }));
+      tr.appendChild(el("td", { className: "right mono", textContent: signed(stat.minPoints) }));
+      tr.appendChild(el("td", { className: "right mono", textContent: signed(stat.totalPoints) }));
+      tr.appendChild(el("td", { className: "right mono", textContent: stat.avgRank.toFixed(2) }));
+      body.appendChild(tr);
+    }
+  }
+
+  function drawCanvasMessage(canvas, message){
+    const ctx = canvas?.getContext("2d");
+    if(!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const cssWidth = Math.max(1, canvas.clientWidth || 400);
+    const cssHeight = Math.max(1, canvas.clientHeight || 220);
+    canvas.width = Math.floor(cssWidth * dpr);
+    canvas.height = Math.floor(cssHeight * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
+    ctx.fillStyle = "#9fb0c7";
+    ctx.font = "600 14px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(message, cssWidth / 2, cssHeight / 2);
+  }
+
+  function chartBaseOptions(){
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: "bottom",
+          labels: {
+            color: "#e7eef9",
+            padding: 10,
+            boxWidth: 12,
+            boxHeight: 3,
+            font: { size: 11 }
+          }
+        }
+      }
+    };
+  }
+
+  function renderStatsCharts(stats){
+    destroyStatsCharts();
+    if(typeof Chart === "undefined") return;
+
+    const winLossCanvas = $("#statsWinLossCanvas");
+    const pointsCanvas = $("#statsPointsCanvas");
+    const trendCanvas = $("#statsTrendCanvas");
+    const positionCanvas = $("#statsPositionCanvas");
+    const canvases = [winLossCanvas, pointsCanvas, trendCanvas, positionCanvas];
+
+    if(stats.length === 0){
+      for(const canvas of canvases) drawCanvasMessage(canvas, t("statsNoData"));
+      return;
+    }
+
+    const labels = stats.map((s) => s.name);
+    const colors = stats.map((_, idx) => playerColor(idx));
+
+    statsCharts.winLoss = new Chart(winLossCanvas.getContext("2d"), {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [
+          { label: t("statsHeaderWon"), data: stats.map((s) => s.wins), backgroundColor: "rgba(52,211,153,.75)" },
+          { label: t("statsHeaderLost"), data: stats.map((s) => s.losses), backgroundColor: "rgba(251,113,133,.75)" }
+        ]
+      },
+      options: {
+        ...chartBaseOptions(),
+        plugins: {
+          ...chartBaseOptions().plugins,
+          title: {
+            display: true,
+            text: t("statsChartWinLoss"),
+            color: "#9fb0c7",
+            font: { size: 12, weight: "700" }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: "#9fb0c7", font: { size: 10 } },
+            grid: { color: "rgba(255,255,255,.08)" }
+          },
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: t("statsAxisGames"),
+              color: "#9fb0c7",
+              font: { size: 11, weight: "700" }
+            },
+            ticks: { color: "#9fb0c7", precision: 0, font: { size: 10 } },
+            grid: { color: "rgba(255,255,255,.10)" }
+          }
+        }
+      }
+    });
+
+    statsCharts.points = new Chart(pointsCanvas.getContext("2d"), {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [
+          { label: t("statsHeaderMin"), data: stats.map((s) => s.minPoints), backgroundColor: "rgba(125,211,252,.62)" },
+          { label: t("statsHeaderAvg"), data: stats.map((s) => Number(s.avgPoints.toFixed(2))), backgroundColor: "rgba(244,197,66,.70)" },
+          { label: t("statsHeaderMax"), data: stats.map((s) => s.maxPoints), backgroundColor: "rgba(52,211,153,.72)" }
+        ]
+      },
+      options: {
+        ...chartBaseOptions(),
+        plugins: {
+          ...chartBaseOptions().plugins,
+          title: {
+            display: true,
+            text: t("statsChartPoints"),
+            color: "#9fb0c7",
+            font: { size: 12, weight: "700" }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: "#9fb0c7", font: { size: 10 } },
+            grid: { color: "rgba(255,255,255,.08)" }
+          },
+          y: {
+            title: {
+              display: true,
+              text: t("statsAxisPoints"),
+              color: "#9fb0c7",
+              font: { size: 11, weight: "700" }
+            },
+            ticks: { color: "#9fb0c7", precision: 0, font: { size: 10 } },
+            grid: { color: "rgba(255,255,255,.10)" }
+          }
+        }
+      }
+    });
+
+    const selected = stats.find((s) => s.key === statsSelectedPlayer) || stats[0];
+    if(selected) statsSelectedPlayer = selected.key;
+
+    if(!selected || selected.scoreHistory.length === 0){
+      drawCanvasMessage(trendCanvas, t("statsNoData"));
+      drawCanvasMessage(positionCanvas, t("statsNoData"));
+      return;
+    }
+
+    const scoreHistory = [...selected.scoreHistory].sort((a, b) => a.stamp - b.stamp);
+    const historyLabels = scoreHistory.map((pt) => formatStamp(pt.stamp));
+    const historyScores = scoreHistory.map((pt) => pt.score);
+
+    statsCharts.trend = new Chart(trendCanvas.getContext("2d"), {
+      type: "line",
+      data: {
+        labels: historyLabels,
+        datasets: [{
+          label: selected.name,
+          data: historyScores,
+          borderColor: playerColor(0),
+          backgroundColor: playerColor(0),
+          borderWidth: 3,
+          pointRadius: 2.5,
+          tension: 0.25
+        }]
+      },
+      options: {
+        ...chartBaseOptions(),
+        plugins: {
+          ...chartBaseOptions().plugins,
+          title: {
+            display: true,
+            text: `${t("statsChartTrend")} - ${selected.name}`,
+            color: "#9fb0c7",
+            font: { size: 12, weight: "700" }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: "#9fb0c7", autoSkip: true, maxTicksLimit: 6, font: { size: 10 } },
+            grid: { color: "rgba(255,255,255,.08)" }
+          },
+          y: {
+            title: {
+              display: true,
+              text: t("statsAxisPoints"),
+              color: "#9fb0c7",
+              font: { size: 11, weight: "700" }
+            },
+            ticks: { color: "#9fb0c7", precision: 0, font: { size: 10 } },
+            grid: { color: "rgba(255,255,255,.10)" }
+          }
+        }
+      }
+    });
+
+    const rankPairs = Object.entries(selected.positionCounts)
+      .map(([rank, count]) => ({ rank: safeInt(rank), count: safeInt(count) }))
+      .sort((a, b) => a.rank - b.rank);
+    const posLabels = rankPairs.map((item) => `${t("statsPositionPrefix")} ${item.rank}`);
+    const posValues = rankPairs.map((item) => item.count);
+    const posColors = rankPairs.map((_, idx) => colors[idx % colors.length]);
+
+    statsCharts.positions = new Chart(positionCanvas.getContext("2d"), {
+      type: "doughnut",
+      data: {
+        labels: posLabels,
+        datasets: [{
+          label: t("statsChartPositions"),
+          data: posValues,
+          backgroundColor: posColors,
+          borderColor: "rgba(255,255,255,.12)",
+          borderWidth: 1
+        }]
+      },
+      options: {
+        ...chartBaseOptions(),
+        plugins: {
+          ...chartBaseOptions().plugins,
+          title: {
+            display: true,
+            text: `${t("statsChartPositions")} - ${selected.name}`,
+            color: "#9fb0c7",
+            font: { size: 12, weight: "700" }
+          }
+        }
+      }
+    });
+  }
+
   function addPlayer(name){
     name = (name || "").trim();
     if(!name) return;
@@ -1093,6 +1739,8 @@
   });
 
   $("#languageSelect").addEventListener("change", (e) => setLanguage(e.target.value));
+  $("#btnSetupHistory").onclick = () => openArchiveModal("games");
+  $("#btnSetupStats").onclick = () => openArchiveModal("stats");
 
   $("#btnStart").onclick = startGame;
   $("#btnNewGame").onclick = newGame;
@@ -1104,15 +1752,35 @@
   $("#historyModal").addEventListener("click", (e) => {
     if(e.target.id === "historyModal") closeHistoryModal();
   });
+  $("#btnTabArchiveGames").onclick = () => setArchiveTab("games");
+  $("#btnTabArchiveStats").onclick = () => setArchiveTab("stats");
+  $("#btnCloseArchive").onclick = closeArchiveModal;
+  $("#archiveModal").addEventListener("click", (e) => {
+    if(e.target.id === "archiveModal") closeArchiveModal();
+  });
+  $("#statsPlayerSelect").addEventListener("change", (e) => {
+    statsSelectedPlayer = String(e.target.value || "");
+    if(archiveTab === "stats" && !$("#archiveModal").classList.contains("hidden")){
+      const stats = computePlayerStats(getSortedArchivedGames());
+      renderStatsCharts(stats);
+    }
+  });
   window.addEventListener("keydown", (e) => {
-    if(e.key === "Escape") closeHistoryModal();
+    if(e.key !== "Escape") return;
+    closeHistoryModal();
+    closeArchiveModal();
   });
 
   render();
 
   window.addEventListener("resize", () => {
-    if(state.mode !== "game") return;
-    renderEntries();
-    if(historyTab === "graph" && !$("#historyModal").classList.contains("hidden")) renderGraph();
+    if(state.mode === "game"){
+      renderEntries();
+      if(historyTab === "graph" && !$("#historyModal").classList.contains("hidden")) renderGraph();
+    }
+    if(archiveTab === "stats" && !$("#archiveModal").classList.contains("hidden")){
+      const stats = computePlayerStats(getSortedArchivedGames());
+      renderStatsCharts(stats);
+    }
   });
 })();
