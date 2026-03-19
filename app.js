@@ -360,7 +360,7 @@
       chips.appendChild(el("div", { className: "small", textContent: t("setupNoPlayersYet") }));
     } else {
       state.players.forEach((p, idx) => {
-        const c = el("div", { className: "chip" });
+        const c = el("div", { className: "chip" + (idx === 0 ? " starterChip" : "") });
         c.appendChild(el("span", { textContent: p.name }));
 
         const up = el("button", { textContent: t("setupMoveUpShort"), title: t("setupMoveUp") });
