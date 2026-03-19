@@ -317,7 +317,8 @@ tr:last-child td{border-bottom:none;}
   min-height:0;
 }
 #tabPanelGraph{
-  display:block;
+  display:grid;
+  min-height:0;
 }
 .graphWrap{
   border:1px solid var(--line);
@@ -326,7 +327,8 @@ tr:last-child td{border-bottom:none;}
     linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)),
     rgba(0,0,0,.18);
   overflow:hidden;
-  min-height:clamp(300px, 48vh, 430px);
+  min-height:0;
+  height:100%;
 }
 #histGraphCanvas{
   display:block;
