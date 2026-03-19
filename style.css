@@ -249,6 +249,12 @@ th,td{
   vertical-align:top;
   white-space:nowrap;
 }
+th:first-child, td:first-child{
+  min-width:72px;
+}
+th:not(:first-child), td:not(:first-child){
+  min-width:120px;
+}
 th{
   font-size:12px;
   color:var(--muted);
@@ -307,7 +313,7 @@ tr:last-child td{border-bottom:none;}
   background:rgba(0,0,0,.22);
   padding:10px;
   display:grid;
-  grid-template-rows:auto 1fr;
+  grid-template-rows:auto minmax(0, 1fr);
   gap:10px;
 }
 .modalBody .histWrap{
@@ -335,6 +341,10 @@ tr:last-child td{border-bottom:none;}
   background:rgba(244,197,66,.18);
 }
 .tabPanel{
+  min-height:0;
+}
+#tabPanelHistory{
+  display:grid;
   min-height:0;
 }
 #tabPanelGraph{
