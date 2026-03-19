@@ -12,6 +12,9 @@
       setupHint: "Add players, then start. Player order determines turn highlight.",
       setupPlayerPlaceholder: "Player name",
       setupAddPlayer: "Add",
+      setupRecentPlayers: "Recent players",
+      setupSeeHistory: "See history",
+      setupPlayerStatistics: "Player statistics",
       setupLanguage: "Language",
       setupNoPlayersYet: "No players yet.",
       setupMoveUp: "Move up",
@@ -59,6 +62,9 @@
       setupHint: "Füge Spieler hinzu und starte dann. Die Reihenfolge bestimmt die Zug-Markierung.",
       setupPlayerPlaceholder: "Spielername",
       setupAddPlayer: "Hinzufügen",
+      setupRecentPlayers: "Recent players",
+      setupSeeHistory: "See history",
+      setupPlayerStatistics: "Player statistics",
       setupLanguage: "Sprache",
       setupNoPlayersYet: "Noch keine Spieler.",
       setupMoveUp: "Nach oben",
@@ -318,6 +324,9 @@
     setText("#setupHint", t("setupHint"));
     setText("#languageLabel", t("setupLanguage"));
     setText("#btnAdd", t("setupAddPlayer"));
+    setText("#recentPlayersLabel", t("setupRecentPlayers"));
+    setText("#btnSetupHistory", t("setupSeeHistory"));
+    setText("#btnSetupStats", t("setupPlayerStatistics"));
     setText("#roundPillText", t("gameRound"));
     setText("#btnNewGame", t("gameNewGame"));
     setText("#btnHistory", t("gameHistory"));
@@ -387,6 +396,29 @@
 
   function signed(value){
     return `${value >= 0 ? "+" : ""}${value}`;
+  }
+
+  function normalizeName(name){
+    return String(name || "").trim().toLowerCase();
+  }
+
+  function getRecentPlayers(limit = 5){
+    const seen = new Set();
+    const result = [];
+
+    for(const game of archivedGames){
+      const roster = Array.isArray(game.players) ? game.players : [];
+      for(let i = roster.length - 1; i >= 0; i -= 1){
+        const name = String(roster[i] || "").trim();
+        if(!name) continue;
+        const key = normalizeName(name);
+        if(!key || seen.has(key)) continue;
+        seen.add(key);
+        result.push(name);
+        if(result.length >= limit) return result;
+      }
+    }
+    return result;
   }
 
   function buildArchivedGameFromState(finishedAt){
@@ -518,6 +550,8 @@
   }
 
   function renderSetup(){
+    renderRecentPlayers();
+
     const chips = $("#chips");
     chips.innerHTML = "";
 
@@ -542,6 +576,33 @@
         c.appendChild(del);
         chips.appendChild(c);
       });
+    }
+  }
+
+  function renderRecentPlayers(){
+    const wrap = $("#recentPlayersWrap");
+    const list = $("#recentPlayers");
+    if(!wrap || !list) return;
+
+    const currentNames = new Set(state.players.map((p) => normalizeName(p.name)));
+    const recent = getRecentPlayers(5).filter((name) => !currentNames.has(normalizeName(name)));
+
+    list.innerHTML = "";
+    if(recent.length === 0){
+      wrap.classList.add("hidden");
+      return;
+    }
+
+    wrap.classList.remove("hidden");
+    for(const name of recent){
+      const chip = el("div", { className: "chip" });
+      const btn = el("button", {
+        type: "button",
+        textContent: name
+      });
+      btn.onclick = () => addPlayer(name);
+      chip.appendChild(btn);
+      list.appendChild(chip);
     }
   }
 

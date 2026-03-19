@@ -137,6 +137,32 @@ button:hover{background:rgba(255,255,255,.09);}
   font-weight:800;
 }
 .chip button{padding:6px 8px; border-radius:10px; font-size:12px;}
+.recentPlayersWrap{margin-top:10px;}
+.recentPlayers{margin-top:6px;}
+.recentPlayers .chip{
+  padding:0;
+  border:none;
+  background:transparent;
+}
+.recentPlayers .chip button{
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid rgba(244,197,66,.35);
+  background:rgba(244,197,66,.16);
+  font-family:var(--mono);
+  font-size:12px;
+}
+.recentPlayers .chip button:hover{
+  background:rgba(244,197,66,.24);
+}
+.setupActionsRow{
+  margin-top:10px;
+  gap:8px;
+}
+.setupActionsRow button{
+  flex:1 1 0;
+  min-width:140px;
+}
 
 /* Current round entries (mobile-first) */
 .entryList{display:grid; gap:8px; margin-top:8px;}
