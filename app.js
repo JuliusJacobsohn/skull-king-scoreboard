@@ -1,5 +1,6 @@
 (() => {
   const KEY = "skullking_mobile_v1";
+  const ARCHIVE_KEY = `${KEY}_archived_games`;
   const LANG_KEY = `${KEY}_lang`;
 
   const I18N = {
@@ -105,6 +106,7 @@
   const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
   const MAX_PIRATES_BONUS = 6;
   const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
+  const nowIso = () => new Date().toISOString();
 
   let language = loadLanguage();
   let historyTab = "history";
@@ -113,12 +115,15 @@
   const DEFAULT = {
     mode: "setup",
     round: 1,
+    sessionId: null,
+    startedAt: null,
     players: [],
     current: {},
     done: []
   };
 
   let state = load();
+  let archivedGames = loadArchive();
 
   function t(key){
     const table = I18N[language] || I18N.en;
@@ -155,6 +160,8 @@
 
       s.mode = (s.mode === "game") ? "game" : "setup";
       s.round = Math.max(1, safeInt(s.round));
+      s.sessionId = s.sessionId ? String(s.sessionId) : null;
+      s.startedAt = s.startedAt ? String(s.startedAt) : null;
 
       s.players = Array.isArray(s.players)
         ? s.players.map((p) => ({
@@ -168,6 +175,8 @@
       s.done = Array.isArray(s.done) ? s.done : [];
 
       for(const p of s.players) ensureCurrent(s, p.id);
+      if(s.mode === "game" && !s.sessionId) s.sessionId = uid();
+      if(s.mode === "game" && !s.startedAt) s.startedAt = nowIso();
 
       return s;
     } catch {
@@ -177,6 +186,108 @@
 
   function save(){
     localStorage.setItem(KEY, JSON.stringify(state));
+  }
+
+  function loadArchive(){
+    try {
+      const raw = localStorage.getItem(ARCHIVE_KEY);
+      if(!raw) return [];
+      const parsed = JSON.parse(raw);
+      if(!Array.isArray(parsed)) return [];
+      return dedupeArchive(parsed.map(sanitizeArchivedGame).filter(Boolean));
+    } catch {
+      return [];
+    }
+  }
+
+  function saveArchive(){
+    localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archivedGames));
+  }
+
+  function sanitizeArchivedGame(game){
+    if(!game || typeof game !== "object") return null;
+
+    const startedAt = game.startedAt ? String(game.startedAt) : null;
+    const finishedAt = game.finishedAt ? String(game.finishedAt) : null;
+    const updatedAt = game.updatedAt ? String(game.updatedAt) : finishedAt || startedAt || nowIso();
+
+    const players = Array.isArray(game.players)
+      ? game.players.map((name) => String(name || "").trim()).filter(Boolean)
+      : [];
+
+    const rounds = Array.isArray(game.rounds)
+      ? game.rounds.map((round) => sanitizeArchivedRound(round))
+      : [];
+
+    const finalTotals = Array.isArray(game.finalTotals)
+      ? game.finalTotals
+        .map((row) => ({
+          name: String(row?.name || "").trim(),
+          total: safeInt(row?.total)
+        }))
+        .filter((row) => row.name)
+      : [];
+
+    const winners = Array.isArray(game.winners)
+      ? game.winners.map((name) => String(name || "").trim()).filter(Boolean)
+      : [];
+
+    const sessionId = game.sessionId ? String(game.sessionId) : uid();
+    const roundsPlayed = Math.max(0, safeInt(game.roundsPlayed || rounds.length));
+
+    return {
+      id: game.id ? String(game.id) : sessionId,
+      sessionId,
+      startedAt,
+      finishedAt,
+      updatedAt,
+      roundsPlayed,
+      players,
+      rounds,
+      finalTotals,
+      winners
+    };
+  }
+
+  function sanitizeArchivedRound(round){
+    const entries = Array.isArray(round?.entries)
+      ? round.entries.map((entry) => ({
+        name: String(entry?.name || "").trim(),
+        bid: safeInt(entry?.bid),
+        won: safeInt(entry?.won),
+        pirates: safeInt(entry?.pirates),
+        mermaid: !!entry?.mermaid,
+        pts: safeInt(entry?.pts),
+        total: safeInt(entry?.total)
+      })).filter((entry) => entry.name)
+      : [];
+
+    return {
+      round: Math.max(1, safeInt(round?.round)),
+      entries
+    };
+  }
+
+  function dedupeArchive(records){
+    const bySession = new Map();
+    for(const rec of records){
+      if(!rec || !rec.sessionId) continue;
+      const prev = bySession.get(rec.sessionId);
+      if(!prev){
+        bySession.set(rec.sessionId, rec);
+        continue;
+      }
+      const prevStamp = Date.parse(prev.updatedAt || prev.finishedAt || prev.startedAt || "");
+      const curStamp = Date.parse(rec.updatedAt || rec.finishedAt || rec.startedAt || "");
+      const prevTime = Number.isFinite(prevStamp) ? prevStamp : 0;
+      const curTime = Number.isFinite(curStamp) ? curStamp : 0;
+      if(curTime >= prevTime) bySession.set(rec.sessionId, rec);
+    }
+    return [...bySession.values()].sort((a, b) => {
+      const aStamp = Date.parse(a.finishedAt || a.updatedAt || a.startedAt || "");
+      const bStamp = Date.parse(b.finishedAt || b.updatedAt || b.startedAt || "");
+      return (Number.isFinite(bStamp) ? bStamp : 0) - (Number.isFinite(aStamp) ? aStamp : 0);
+    });
   }
 
   function setText(selector, value){
@@ -276,6 +387,60 @@
 
   function signed(value){
     return `${value >= 0 ? "+" : ""}${value}`;
+  }
+
+  function buildArchivedGameFromState(finishedAt){
+    if(!state.sessionId || state.done.length === 0) return null;
+
+    const players = state.players.map((p) => p.name).filter(Boolean);
+    const rounds = state.done.map((roundRec) => {
+      const entries = state.players.map((p) => {
+        const entry = roundRec.entries?.[p.id] || {};
+        return {
+          name: p.name,
+          bid: safeInt(entry.bid),
+          won: safeInt(entry.won),
+          pirates: safeInt(entry.pirates),
+          mermaid: !!entry.mermaid,
+          pts: safeInt(entry.pts),
+          total: safeInt(roundRec.totals?.[p.id])
+        };
+      });
+      return { round: Math.max(1, safeInt(roundRec.round)), entries };
+    });
+
+    const finalTotals = state.players.map((p) => ({ name: p.name, total: safeInt(p.total) }));
+    const best = finalTotals.length ? Math.max(...finalTotals.map((r) => r.total)) : 0;
+    const winners = finalTotals.filter((r) => r.total === best).map((r) => r.name);
+
+    return {
+      id: state.sessionId,
+      sessionId: state.sessionId,
+      startedAt: state.startedAt || finishedAt,
+      finishedAt,
+      updatedAt: finishedAt,
+      roundsPlayed: state.done.length,
+      players,
+      rounds,
+      finalTotals,
+      winners
+    };
+  }
+
+  function upsertArchiveFromState(){
+    const finishedAt = nowIso();
+    const rec = buildArchivedGameFromState(finishedAt);
+    if(!rec) return;
+
+    const index = archivedGames.findIndex((g) => g.sessionId === rec.sessionId);
+    if(index >= 0){
+      archivedGames[index] = rec;
+    } else {
+      archivedGames.push(rec);
+    }
+
+    archivedGames = dedupeArchive(archivedGames);
+    saveArchive();
   }
 
   function setHistoryTab(tab){
@@ -804,6 +969,8 @@
     for(const p of state.players) p.total = 0;
     state.done = [];
     state.round = 1;
+    state.sessionId = uid();
+    state.startedAt = nowIso();
     state.current = {};
     for(const p of state.players) ensureCurrent(state, p.id);
 
@@ -814,6 +981,7 @@
 
   function newGame(){
     if(!confirm(t("confirmNewGame"))) return;
+    if(state.mode === "game" && state.done.length > 0) upsertArchiveFromState();
     state = structuredClone(DEFAULT);
     save();
     render();
@@ -853,6 +1021,7 @@
     state.current = {};
     for(const p of state.players) ensureCurrent(state, p.id);
 
+    upsertArchiveFromState();
     save();
     render();
   }
