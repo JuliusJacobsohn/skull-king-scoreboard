@@ -568,6 +568,7 @@
   function renderHistory(){
     const head = $("#histHead");
     const body = $("#histBody");
+    const table = head?.closest("table");
     head.innerHTML = "";
     body.innerHTML = "";
 
@@ -578,6 +579,15 @@
       trh.appendChild(el("th", { className: "right", textContent: p.name }));
     });
     head.appendChild(trh);
+
+    if(table){
+      if(state.players.length > 3){
+        const minWidth = 84 + (state.players.length * 130);
+        table.style.minWidth = `${minWidth}px`;
+      } else {
+        table.style.minWidth = "100%";
+      }
+    }
 
     if(state.players.length === 0){
       const tr = el("tr");
