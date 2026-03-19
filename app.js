@@ -452,12 +452,12 @@
       top.appendChild(el("div", { className: "pname", textContent: p.name }));
       const scoreMeta = el("div", { className: "scoreMeta" });
       scoreMeta.appendChild(el("div", {
-        className: "ptotal",
-        textContent: `${t("entryTotal")} ${signed(p.total)}`
+        className: "roundMini",
+        textContent: `${t("entryRound")} ${signed(rPts)}`
       }));
       scoreMeta.appendChild(el("div", {
-        className: "roundMini " + (rPts >= 0 ? "pos" : "neg"),
-        textContent: `${t("entryRound")} ${signed(rPts)}`
+        className: "ptotal",
+        textContent: `${t("entryTotal")} ${signed(p.total)}`
       }));
       top.appendChild(scoreMeta);
       row.appendChild(top);
