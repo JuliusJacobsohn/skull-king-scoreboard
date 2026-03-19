@@ -1721,7 +1721,6 @@
 
   function newGame(){
     if(!confirm(t("confirmNewGame"))) return;
-    if(state.mode === "game" && state.done.length > 0) upsertArchiveFromState();
     state = structuredClone(DEFAULT);
     save();
     render();
