@@ -45,16 +45,19 @@
       <div class="card">
         <div class="toolbarRow">
           <div class="row" style="gap:8px;">
-            <span class="pill"><span id="roundPillText">Round</span> <b id="roundLabel">1</b></span>
+            <span class="pill"><span id="roundPillText">Round</span> <b id="roundLabel">1</b> <b id="roundDelta">Δ +0</b></span>
           </div>
           <div class="row actionRow">
             <button id="btnNewGame" class="btnDanger">New game</button>
             <button id="btnHistory">History</button>
-            <button id="btnDone" class="btnAccent">Round done</button>
           </div>
         </div>
 
         <div id="entryList" class="entryList"></div>
+        <div class="roundActions">
+          <div id="roundActionStatus" class="small mono"></div>
+          <button id="btnRoundAction" class="btnAccent">Confirm bids</button>
+        </div>
       </div>
     </section>
   </div>

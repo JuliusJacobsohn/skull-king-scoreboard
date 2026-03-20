@@ -27,6 +27,11 @@
       gameNewGame: "New game",
       gameHistory: "History",
       gameRoundDone: "Round done",
+      gameConfirmBids: "Confirm bids",
+      gameRoundDoneDisabled: "Won total must equal round ({won}/{round}).",
+      gameRoundDoneReady: "Won total matches round ({won}/{round}).",
+      gameBidDelta: "Bid delta",
+      gameBidDeltaHint: "round - total bids",
       historyTitle: "History",
       historyClose: "Close",
       historyViewsAriaLabel: "History views",
@@ -110,6 +115,11 @@
       gameNewGame: "Neues Spiel",
       gameHistory: "Verlauf",
       gameRoundDone: "Runde abschließen",
+      gameConfirmBids: "Ansagen bestätigen",
+      gameRoundDoneDisabled: "Stich-Summe muss der Runde entsprechen ({won}/{round}).",
+      gameRoundDoneReady: "Stich-Summe passt zur Runde ({won}/{round}).",
+      gameBidDelta: "Ansage-Differenz",
+      gameBidDeltaHint: "Runde - Gesamtansagen",
       historyTitle: "Verlauf",
       historyClose: "Schließen",
       historyViewsAriaLabel: "Verlaufsansichten",
@@ -195,6 +205,7 @@
   const DEFAULT = {
     mode: "setup",
     round: 1,
+    roundPhase: "bids",
     sessionId: null,
     startedAt: null,
     players: [],
@@ -249,6 +260,7 @@
 
       s.mode = (s.mode === "game") ? "game" : "setup";
       s.round = Math.max(1, safeInt(s.round));
+      s.roundPhase = (s.roundPhase === "results") ? "results" : "bids";
       s.sessionId = s.sessionId ? String(s.sessionId) : null;
       s.startedAt = s.startedAt ? String(s.startedAt) : null;
 
@@ -422,7 +434,6 @@
     setText("#roundPillText", t("gameRound"));
     setText("#btnNewGame", t("gameNewGame"));
     setText("#btnHistory", t("gameHistory"));
-    setText("#btnDone", t("gameRoundDone"));
     setText("#historyTitle", t("historyTitle"));
     setText("#btnCloseHistory", t("historyClose"));
     setText("#btnTabHistory", t("historyTabHistory"));
@@ -466,6 +477,10 @@
     return (state.round - 1) % state.players.length;
   }
 
+  function inResultsPhase(){
+    return state.roundPhase === "results";
+  }
+
   function basePointsFor(round, bid, won){
     bid = safeInt(bid);
     won = safeInt(won);
@@ -496,6 +511,12 @@
 
   function signed(value){
     return `${value >= 0 ? "+" : ""}${value}`;
+  }
+
+  function signedDelta(value){
+    const n = safeInt(value);
+    if(n < 0) return `-${Math.abs(n)}`;
+    return `+${n}`;
   }
 
   function normalizeName(name){
@@ -740,6 +761,7 @@
     $("#leaderLine").textContent = top || "";
 
     renderEntries();
+    renderRoundActions();
     renderHistory();
     if(historyTab === "graph" && !$("#historyModal").classList.contains("hidden")) renderGraph();
   }
@@ -775,7 +797,8 @@
     }
 
     const tIdx = turnIndex();
-    const changedByAutoFill = autoFillLastWon();
+    const resultsPhase = inResultsPhase();
+    const changedByAutoFill = resultsPhase ? autoFillLastWon() : false;
     if(changedByAutoFill) save();
 
     state.players.forEach((p, idx) => {
@@ -796,13 +819,19 @@
         mermaid: !!cur.mermaid
       });
 
-      const row = el("div", { className: "entryRow" + (idx === tIdx ? " turn" : "") });
+      const row = el("div", { className: `entryRow compact ${idx === tIdx ? " turn" : ""}` });
 
       const top = el("div", { className: "entryTop" });
-      top.appendChild(el("div", { className: "pname", textContent: p.name }));
+      const playerMeta = el("div", { className: "playerMeta" });
+      playerMeta.appendChild(el("div", { className: "pname", textContent: p.name }));
+      playerMeta.appendChild(el("div", {
+        className: "playerBidBadge",
+        textContent: `${t("entryBid")} ${bidValue}`
+      }));
+      top.appendChild(playerMeta);
       const scoreMeta = el("div", { className: "scoreMeta" });
       scoreMeta.appendChild(el("div", {
-        className: "roundMini",
+        className: "roundMini " + (resultsPhase ? "" : "hidden"),
         textContent: `${t("entryRound")} ${signed(rPts)}`
       }));
       scoreMeta.appendChild(el("div", {
@@ -812,78 +841,129 @@
       top.appendChild(scoreMeta);
       row.appendChild(top);
 
-      const inputs = el("div", { className: "inputs" });
+      const inputs = el("div", { className: `inputs ${resultsPhase ? "phaseResults" : "phaseBids"}` });
 
-      const fBid = el("div", { className: "field rowBid" });
-      fBid.appendChild(el("label", { textContent: t("entryBid") }));
-      fBid.appendChild(makeNumberButtons({
-        min: 0,
-        max: state.round,
-        selected: bidValue,
-        onPick: (v) => {
-          cur.bid = String(v);
-          save();
-          renderEntries();
-          renderHistory();
-        }
-      }));
-      inputs.appendChild(fBid);
+      if(!resultsPhase){
+        const fBid = el("div", { className: "field rowBid" });
+        fBid.appendChild(el("label", { textContent: t("entryBid") }));
+        fBid.appendChild(makeNumberButtons({
+          min: 0,
+          max: state.round,
+          selected: bidValue,
+          onPick: (v) => {
+            cur.bid = String(v);
+            save();
+            renderEntries();
+            renderRoundActions();
+            renderHistory();
+          }
+        }));
+        inputs.appendChild(fBid);
+      }
 
-      const fWon = el("div", { className: "field rowWon" });
-      fWon.appendChild(el("label", { textContent: t("entryWon") }));
-      fWon.appendChild(makeNumberButtons({
-        min: 0,
-        max: state.round,
-        selected: wonValue,
-        onPick: (v) => {
-          cur.won = String(v);
-          cur.wonTouched = true;
-          autoFillLastWon();
-          const maxPirates = Math.min(MAX_PIRATES_BONUS, v);
-          cur.pirates = String(clamp(safeInt(cur.pirates), 0, maxPirates));
-          save();
-          renderEntries();
-          renderHistory();
-        }
-      }));
-      inputs.appendChild(fWon);
+      if(resultsPhase){
+        const fWon = el("div", { className: "field rowWon" });
+        fWon.appendChild(el("label", { textContent: t("entryWon") }));
+        fWon.appendChild(makeNumberButtons({
+          min: 0,
+          max: state.round,
+          selected: wonValue,
+          onPick: (v) => {
+            cur.won = String(v);
+            cur.wonTouched = true;
+            autoFillLastWon();
+            const maxPirates = Math.min(MAX_PIRATES_BONUS, v);
+            cur.pirates = String(clamp(safeInt(cur.pirates), 0, maxPirates));
+            save();
+            renderEntries();
+            renderRoundActions();
+            renderHistory();
+          }
+        }));
+        inputs.appendChild(fWon);
 
-      const bonus = el("div", { className: "bonusRow" });
-      const fPir = el("div", { className: "field bonusPirates" });
-      fPir.appendChild(el("label", { textContent: t("entryPirates") }));
-      fPir.appendChild(makeNumberButtons({
-        min: 0,
-        max: piratesMax,
-        selected: bonusEnabled ? piratesValue : 0,
-        disabled: !bonusEnabled,
-        onPick: (v) => {
-          cur.pirates = String(v);
-          save();
-          renderEntries();
-          renderHistory();
-        }
-      }));
-      bonus.appendChild(fPir);
+        const bonus = el("div", { className: "bonusRow" });
+        const fPir = el("div", { className: "field bonusPirates" });
+        fPir.appendChild(el("label", { textContent: t("entryPirates") }));
+        fPir.appendChild(makeNumberButtons({
+          min: 0,
+          max: piratesMax,
+          selected: bonusEnabled ? piratesValue : 0,
+          disabled: !bonusEnabled,
+          onPick: (v) => {
+            cur.pirates = String(v);
+            save();
+            renderEntries();
+            renderHistory();
+          }
+        }));
+        bonus.appendChild(fPir);
 
-      const fMer = el("div", { className: "field bonusMermaid" });
-      fMer.appendChild(el("label", { textContent: t("entryMermaid") }));
-      fMer.appendChild(makeToggleButton({
-        active: bonusEnabled && !!cur.mermaid,
-        text: t("entryMermaidToggle"),
-        disabled: !bonusEnabled,
-        onToggle: () => {
-          cur.mermaid = !cur.mermaid;
-          save();
-          renderEntries();
-          renderHistory();
-        }
-      }));
-      bonus.appendChild(fMer);
-      inputs.appendChild(bonus);
+        const fMer = el("div", { className: "field bonusMermaid" });
+        fMer.appendChild(el("label", { textContent: t("entryMermaid") }));
+        fMer.appendChild(makeToggleButton({
+          active: bonusEnabled && !!cur.mermaid,
+          text: t("entryMermaidToggle"),
+          disabled: !bonusEnabled,
+          onToggle: () => {
+            cur.mermaid = !cur.mermaid;
+            save();
+            renderEntries();
+            renderHistory();
+          }
+        }));
+        bonus.appendChild(fMer);
+        inputs.appendChild(bonus);
+      }
 
       row.appendChild(inputs);
       list.appendChild(row);
     });
+  }
+
+  function sumBids(){
+    return state.players.reduce((sum, p) => {
+      ensureCurrent(state, p.id);
+      return sum + clamp(safeInt(state.current[p.id].bid), 0, state.round);
+    }, 0);
+  }
+
+  function sumWon(){
+    return state.players.reduce((sum, p) => {
+      ensureCurrent(state, p.id);
+      return sum + clamp(safeInt(state.current[p.id].won), 0, state.round);
+    }, 0);
+  }
+
+  function renderRoundActions(){
+    const actionBtn = $("#btnRoundAction");
+    const status = $("#roundActionStatus");
+    const roundDelta = $("#roundDelta");
+    if(!actionBtn || !status) return;
+
+    const bidTotal = sumBids();
+    const delta = state.round - bidTotal;
+    if(roundDelta){
+      roundDelta.textContent = `Δ ${signedDelta(delta)}`;
+      roundDelta.className = delta === 0 ? "roundDelta pos" : "roundDelta neg";
+    }
+
+    if(!inResultsPhase()){
+      actionBtn.textContent = t("gameConfirmBids");
+      actionBtn.disabled = (state.players.length === 0);
+      status.textContent = `${t("gameBidDelta")}: ${signed(delta)} (${t("gameBidDeltaHint")})`;
+      status.className = `small mono ${delta === 0 ? "pos" : "neg"}`;
+      return;
+    }
+
+    const wonTotal = sumWon();
+    const ready = wonTotal === state.round;
+    actionBtn.textContent = t("gameRoundDone");
+    actionBtn.disabled = !ready;
+    status.textContent = ready
+      ? tf("gameRoundDoneReady", { won: wonTotal, round: state.round })
+      : tf("gameRoundDoneDisabled", { won: wonTotal, round: state.round });
+    status.className = `small mono ${ready ? "pos" : "neg"}`;
   }
 
   function makeNumberButtons({ min, max, selected, onPick, disabled = false }){
@@ -1709,6 +1789,7 @@
     for(const p of state.players) p.total = 0;
     state.done = [];
     state.round = 1;
+    state.roundPhase = "bids";
     state.sessionId = uid();
     state.startedAt = nowIso();
     state.current = {};
@@ -1728,6 +1809,18 @@
 
   function roundDone(){
     if(state.players.length === 0) return;
+    if(!inResultsPhase()){
+      for(const p of state.players){
+        ensureCurrent(state, p.id);
+        const cur = state.current[p.id];
+        cur.wonTouched = false;
+      }
+      state.roundPhase = "results";
+      save();
+      render();
+      return;
+    }
+    if(sumWon() !== state.round) return;
 
     const rec = { round: state.round, entries: {}, totals: {} };
 
@@ -1757,6 +1850,7 @@
     state.done.push(rec);
 
     state.round += 1;
+    state.roundPhase = "bids";
     state.current = {};
     for(const p of state.players) ensureCurrent(state, p.id);
 
@@ -1776,7 +1870,7 @@
 
   $("#btnStart").onclick = startGame;
   $("#btnNewGame").onclick = newGame;
-  $("#btnDone").onclick = roundDone;
+  $("#btnRoundAction").onclick = roundDone;
   $("#btnHistory").onclick = openHistoryModal;
   $("#btnTabHistory").onclick = () => setHistoryTab("history");
   $("#btnTabGraph").onclick = () => setHistoryTab("graph");

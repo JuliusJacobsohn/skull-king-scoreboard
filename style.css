@@ -42,6 +42,11 @@ body{
   white-space:nowrap;
 }
 .pill b{color:var(--text);}
+.roundDelta{
+  min-width:28px;
+  text-align:right;
+  font-family:var(--mono);
+}
 
 .wrap{
   max-width:980px; margin:0 auto;
@@ -111,6 +116,17 @@ button{
   font-weight:750;
 }
 button:hover{background:rgba(255,255,255,.09);}
+button:disabled{
+  opacity:.45;
+  cursor:not-allowed;
+  background:rgba(255,255,255,.03);
+  border-color:rgba(255,255,255,.10);
+  color:rgba(231,238,249,.60);
+  box-shadow:none;
+}
+button:disabled:hover{
+  background:rgba(255,255,255,.03);
+}
 .btnAccent{border-color:rgba(244,197,66,.30); background:rgba(244,197,66,.14);}
 .btnAccent:hover{background:rgba(244,197,66,.20);}
 .btnDanger{border-color:rgba(251,113,133,.30); background:rgba(251,113,133,.10);}
@@ -170,9 +186,15 @@ button:hover{background:rgba(255,255,255,.09);}
   border:1px solid rgba(255,255,255,.10);
   border-radius:12px;
   background:rgba(0,0,0,.18);
-  padding:8px;
+  padding:7px 8px;
 }
 .entryTop{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+.playerMeta{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+}
 .pname{font-family:var(--mono); font-weight:850; letter-spacing:.2px;}
 .scoreMeta{
   display:flex;
@@ -194,16 +216,33 @@ button:hover{background:rgba(255,255,255,.09);}
   font-weight:700;
   color:var(--muted);
 }
+.playerBidBadge{
+  font-family:var(--mono);
+  font-size:11px;
+  font-weight:800;
+  border:1px solid rgba(244,197,66,.45);
+  background:rgba(244,197,66,.20);
+  color:#fff5cf;
+  border-radius:999px;
+  padding:3px 8px;
+  white-space:nowrap;
+}
 .turn{
   border-color: rgba(244,197,66,.35);
   box-shadow: 0 0 0 3px rgba(244,197,66,.10);
 }
 .inputs{
-  margin-top:6px;
+  margin-top:5px;
   display:grid;
   grid-template-columns: 1fr;
-  gap:6px;
+  gap:5px;
   align-items:end;
+}
+.inputs.phaseBids{
+  grid-template-columns:1fr;
+}
+.inputs.phaseResults{
+  grid-template-columns:1fr;
 }
 .field{min-width:0;}
 .field label{
@@ -241,8 +280,17 @@ button:hover{background:rgba(255,255,255,.09);}
 .bonusRow{
   display:grid;
   grid-template-columns: 1.45fr 1fr;
-  gap:8px;
+  gap:6px;
   align-items:end;
+}
+.roundActions{
+  margin-top:10px;
+  display:grid;
+  grid-template-columns:1fr;
+  gap:8px;
+}
+.roundActions #btnRoundAction{
+  width:100%;
 }
 .toggleBtn{
   white-space:nowrap;
@@ -303,7 +351,7 @@ tr:last-child td{border-bottom:none;}
 @media (min-width: 900px){
   .wrap{padding:14px 14px 22px;}
   .card{padding:12px;}
-  .entryRow{padding:10px;}
+  .entryRow{padding:8px 10px;}
   .inputs{gap:8px;}
   .numBtn{min-height:30px; font-size:12px;}
   .actionRow button{padding:9px 11px; font-size:14px;}
