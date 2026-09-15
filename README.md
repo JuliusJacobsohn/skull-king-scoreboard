@@ -17,7 +17,7 @@ It is designed for quick mobile use, works without a backend, and persists state
   - **History**: per-round points and totals table.
   - **Graph** (default): score progression chart (x = round, y = total score) with one line color per player, starting at round 0 with zero scores.
 - Local persistence via `localStorage`.
-- Undo individual bids, trick results (including automatic fills), bonuses, bid confirmation, completed rounds, player setup, and new-game resets. A compact undo control sits above the round entries, away from the main action; its accessible label and tooltip name the action it will undo. Undo history survives reloads.
+- Undo bids, results, bonuses, completed rounds, player setup, and new-game resets, even after reloading.
 - New game reset with confirmation prompt.
 - Mobile history and statistics use one vertical scrolling area per tab; wide tables can also be swiped horizontally.
 
@@ -27,11 +27,6 @@ It is designed for quick mobile use, works without a backend, and persists state
 3. For each round, set Bid, Won, and optional bonuses for each player. The last `Won` value can auto-fill after the other players are set.  
 4. Press **Round done** to apply scoring and advance to the next round.  
 5. Open **History** to switch between the table and graph views.
-
-### Saved games and undo
-- Existing games and archives continue using the same `skullking_mobile_v1` storage keys. Deploying an update to the same GitHub Pages origin preserves them; no reset or manual migration is needed.
-- Older saves support reopening completed rounds and returning from results to bids. Individual taps made before this update cannot be reconstructed.
-- Undoing a completed round updates that game's archive and player statistics. Completing the corrected round replaces the same archive entry.
 
 ### Scoring
 - Bid > 0: exact = `20 * bid`; miss = `-10 * |bid - won|`.
