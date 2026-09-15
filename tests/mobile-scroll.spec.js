@@ -51,6 +51,15 @@ async function checkHorizontal(table, panel) {
 
 test('round history scrolls to the last round and across all players', async ({ page, browserName }) => {
   await page.locator('#btnHistory').click();
+  await expect(page.locator('#btnTabGraph')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#histGraphCanvas')).toBeInViewport();
+  const graph = await page.evaluate(() => {
+    const chart = Chart.getChart('histGraphCanvas');
+    return { labels: chart.data.labels, scores: chart.data.datasets.map((dataset) => dataset.data) };
+  });
+  expect(graph.labels).toEqual(Array.from({ length: 11 }, (_, i) => String(i)));
+  expect(graph.scores).toEqual(Array.from({ length: 6 }, () => [0, 10, 30, 60, 100, 150, 210, 280, 360, 450, 550]));
+  await page.locator('#btnTabHistory').click();
   const panel = page.locator('#tabPanelHistory');
   if (browserName === 'chromium') {
     // Start the gesture on the horizontally scrollable table itself.
@@ -71,6 +80,26 @@ test('round history scrolls to the last round and across all players', async ({ 
   await page.locator('#btnTabGraph').click();
   await expect(page.locator('#histGraphCanvas')).toBeInViewport();
   expect(await page.locator('#histGraphCanvas').evaluate((el) => el.clientHeight)).toBeGreaterThan(400);
+});
+
+test('a new game shows round zero without adding a saved round', async ({ page }, testInfo) => {
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.locator('#btnNewGame').click();
+  for (const name of ['Alice', 'Bob']) {
+    await page.locator('#playerName').fill(name);
+    await page.locator('#btnAdd').click();
+  }
+  await page.locator('#btnStart').click();
+  const saved = await page.evaluate((key) => localStorage.getItem(key), KEY);
+  await page.screenshot({ path: testInfo.outputPath('compact-undo.png') });
+  await page.locator('#btnHistory').click();
+  await expect(page.locator('#btnTabGraph')).toHaveAttribute('aria-selected', 'true');
+  expect(await page.evaluate(() => {
+    const chart = Chart.getChart('histGraphCanvas');
+    return { labels: chart.data.labels, scores: chart.data.datasets.map((dataset) => dataset.data) };
+  })).toEqual({ labels: ['0'], scores: [[0], [0]] });
+  expect(await page.evaluate((key) => localStorage.getItem(key), KEY)).toBe(saved);
+  await page.screenshot({ path: testInfo.outputPath('round-zero.png') });
 });
 
 test('archive list and expanded game details have reachable content', async ({ page }) => {

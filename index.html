@@ -38,7 +38,9 @@
       </div>
 
       <div id="chips" class="chips"></div>
-      <button id="btnUndoSetup" class="undoButton" disabled>Undo</button>
+      <div class="secondaryActions">
+        <button id="btnUndoSetup" class="undoButton" disabled>↶ Undo</button>
+      </div>
     </section>
 
     <!-- GAME SCREEN -->
@@ -54,10 +56,12 @@
           </div>
         </div>
 
+        <div class="secondaryActions">
+          <button id="btnUndoGame" class="undoButton" disabled>↶ Undo</button>
+        </div>
         <div id="entryList" class="entryList"></div>
         <div class="roundActions">
           <div id="roundActionStatus" class="small mono"></div>
-          <button id="btnUndoGame" class="undoButton" disabled>Undo</button>
           <button id="btnRoundAction" class="btnAccent">Confirm bids</button>
         </div>
       </div>
@@ -75,10 +79,10 @@
       </div>
       <div class="modalBody">
         <div id="historyTabs" class="histTabs" role="tablist" aria-label="History views">
-          <button id="btnTabHistory" class="tabBtn active" role="tab" aria-selected="true" aria-controls="tabPanelHistory">History</button>
-          <button id="btnTabGraph" class="tabBtn" role="tab" aria-selected="false" aria-controls="tabPanelGraph">Graph</button>
+          <button id="btnTabHistory" class="tabBtn" role="tab" aria-selected="false" aria-controls="tabPanelHistory">History</button>
+          <button id="btnTabGraph" class="tabBtn active" role="tab" aria-selected="true" aria-controls="tabPanelGraph">Graph</button>
         </div>
-        <div id="tabPanelHistory" class="tabPanel" role="tabpanel">
+        <div id="tabPanelHistory" class="tabPanel hidden" role="tabpanel">
           <div class="histWrap">
             <table>
               <thead id="histHead"></thead>
@@ -86,7 +90,7 @@
             </table>
           </div>
         </div>
-        <div id="tabPanelGraph" class="tabPanel hidden" role="tabpanel">
+        <div id="tabPanelGraph" class="tabPanel" role="tabpanel">
           <div class="graphWrap">
             <canvas id="histGraphCanvas" aria-label="Score progression graph"></canvas>
           </div>

@@ -217,7 +217,7 @@
   const nowIso = () => new Date().toISOString();
 
   let language = loadLanguage();
-  let historyTab = "history";
+  let historyTab = "graph";
   let historyChart = null;
   let archiveTab = "games";
   let statsSelectedPlayer = "";
@@ -391,9 +391,10 @@
     const label = state.undo.at(-1)?.label || legacyUndoLabel();
     for(const id of ["#btnUndoSetup", "#btnUndoGame"]){
       const button = $(id);
-      button.textContent = label ? tf("undoAction", { action: t(label) }) : t("undo");
+      button.textContent = `↶ ${t("undo")}`;
       button.disabled = !label;
-      button.title = label ? button.textContent : t("undoUnavailable");
+      button.title = label ? tf("undoAction", { action: t(label) }) : t("undoUnavailable");
+      button.setAttribute("aria-label", button.title);
     }
   }
 
@@ -1158,7 +1159,7 @@
       historyChart = null;
     }
 
-    if(state.players.length === 0 || state.done.length === 0){
+    if(state.players.length === 0){
       const ctx = canvas.getContext("2d");
       if(!ctx) return;
       const dpr = window.devicePixelRatio || 1;
@@ -1173,22 +1174,22 @@
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(
-        state.players.length === 0 ? t("graphNoPlayers") : t("graphNoCompleted"),
+        t("graphNoPlayers"),
         cssWidth / 2,
         cssHeight / 2
       );
       return;
     }
 
-    const labels = state.done.map((r, idx) => String(safeInt(r.round) || (idx + 1)));
+    const labels = ["0", ...state.done.map((r, idx) => String(safeInt(r.round) || (idx + 1)))];
     const datasets = state.players.map((p, idx) => {
       const color = playerColor(idx);
       return {
         label: p.name,
-        data: state.done.map((r) => {
+        data: [0, ...state.done.map((r) => {
           const total = r.totals?.[p.id];
           return (typeof total === "number") ? total : null;
-        }),
+        })],
         borderColor: color,
         backgroundColor: color,
         borderWidth: 3,

@@ -15,9 +15,9 @@ It is designed for quick mobile use, works without a backend, and persists state
 - Live round points preview and running totals.
 - History modal with two tabs:
   - **History**: per-round points and totals table.
-  - **Graph**: score progression chart (x = round, y = total score) with one line color per player.
+  - **Graph** (default): score progression chart (x = round, y = total score) with one line color per player, starting at round 0 with zero scores.
 - Local persistence via `localStorage`.
-- Undo individual bids, trick results (including automatic fills), bonuses, bid confirmation, completed rounds, player setup, and new-game resets. The button names the action it will undo, and undo history survives reloads.
+- Undo individual bids, trick results (including automatic fills), bonuses, bid confirmation, completed rounds, player setup, and new-game resets. A compact undo control sits above the round entries, away from the main action; its accessible label and tooltip name the action it will undo. Undo history survives reloads.
 - New game reset with confirmation prompt.
 - Mobile history and statistics use one vertical scrolling area per tab; wide tables can also be swiped horizontally.
 
