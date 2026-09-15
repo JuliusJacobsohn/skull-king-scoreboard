@@ -308,8 +308,8 @@ button:disabled:hover{
 /* History */
 .histWrap{
   overflow-x:auto;
-  overflow-y:auto;
   margin-top:14px;
+  min-width:0;
 }
 table{
   width:max-content;
@@ -338,7 +338,6 @@ th{
   font-size:12px;
   color:var(--muted);
   background:rgba(0,0,0,.22);
-  position:sticky; top:0; z-index:2;
   white-space:nowrap;
 }
 tr:last-child td{border-bottom:none;}
@@ -370,11 +369,14 @@ tr:last-child td{border-bottom:none;}
   backdrop-filter:blur(8px);
 }
 .modalPage{
+  height:100vh;
   height:100dvh;
   width:100%;
   display:grid;
-  grid-template-rows:auto 1fr;
+  grid-template-rows:auto minmax(0, 1fr);
   padding:12px;
+  padding-top:max(12px, env(safe-area-inset-top));
+  padding-bottom:max(12px, env(safe-area-inset-bottom));
   padding-left:max(12px, env(safe-area-inset-left));
   padding-right:max(12px, env(safe-area-inset-right));
   gap:10px;
@@ -387,6 +389,8 @@ tr:last-child td{border-bottom:none;}
 }
 .modalBody{
   min-height:0;
+  min-width:0;
+  overflow:hidden;
   border:1px solid var(--line);
   border-radius:var(--r);
   background:rgba(0,0,0,.22);
@@ -396,7 +400,6 @@ tr:last-child td{border-bottom:none;}
   gap:10px;
 }
 .modalBody .histWrap{
-  height:100%;
   margin-top:0;
 }
 .histTabs{
@@ -421,14 +424,18 @@ tr:last-child td{border-bottom:none;}
 }
 .tabPanel{
   min-height:0;
+  min-width:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior-y:contain;
+  -webkit-overflow-scrolling:touch;
 }
 #tabPanelHistory{
-  display:grid;
-  min-height:0;
+  display:block;
 }
 #tabPanelGraph{
   display:grid;
-  min-height:0;
+  overflow:hidden;
 }
 .graphWrap{
   border:1px solid var(--line);
@@ -449,7 +456,6 @@ tr:last-child td{border-bottom:none;}
   display:grid;
   gap:10px;
   min-height:0;
-  overflow-y:auto;
   padding-right:2px;
 }
 .archiveGameCard{
@@ -492,17 +498,13 @@ tr:last-child td{border-bottom:none;}
 }
 .statsFilterRow{
   margin-top:4px;
-  margin-bottom:2px;
+  margin-bottom:10px;
 }
 #tabPanelArchiveStats{
-  display:grid;
-  grid-template-rows:auto minmax(180px, auto) minmax(0, 1fr);
-  gap:10px;
-  min-height:0;
+  display:block;
 }
 .statsCharts{
-  min-height:0;
-  overflow-y:auto;
+  margin-top:10px;
   display:grid;
   grid-template-columns:1fr;
   gap:10px;

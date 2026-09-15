@@ -19,6 +19,7 @@ It is designed for quick mobile use, works without a backend, and persists state
 - Local persistence via `localStorage`.
 - Undo individual bids, trick results (including automatic fills), bonuses, bid confirmation, completed rounds, player setup, and new-game resets. The button names the action it will undo, and undo history survives reloads.
 - New game reset with confirmation prompt.
+- Mobile history and statistics use one vertical scrolling area per tab; wide tables can also be swiped horizontally.
 
 ### Usage
 1. Add players on the setup screen.  
