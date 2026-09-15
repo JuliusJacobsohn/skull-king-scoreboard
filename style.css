@@ -292,6 +292,11 @@ button:disabled:hover{
 .roundActions #btnRoundAction{
   width:100%;
 }
+.undoButton{
+  min-height:44px;
+  width:100%;
+}
+#btnUndoSetup{margin-top:12px;}
 .toggleBtn{
   white-space:nowrap;
   overflow:hidden;

@@ -28,6 +28,19 @@
       gameHistory: "History",
       gameRoundDone: "Round done",
       gameConfirmBids: "Confirm bids",
+      undo: "Undo",
+      undoAction: "Undo: {action}",
+      undoUnavailable: "Nothing to undo yet",
+      undoAddPlayer: "add player",
+      undoRemovePlayer: "remove player",
+      undoMovePlayer: "reorder players",
+      undoStartGame: "start game",
+      undoNewGame: "new game",
+      undoBid: "bid",
+      undoWon: "won tricks",
+      undoBonus: "bonus",
+      undoConfirmBids: "confirm bids",
+      undoRound: "complete round",
       gameRoundDoneDisabled: "Won total must equal round ({won}/{round}).",
       gameRoundDoneReady: "Won total matches round ({won}/{round}).",
       gameBidDelta: "Bid delta",
@@ -116,6 +129,19 @@
       gameHistory: "Verlauf",
       gameRoundDone: "Runde abschließen",
       gameConfirmBids: "Ansagen bestätigen",
+      undo: "Rückgängig",
+      undoAction: "Rückgängig: {action}",
+      undoUnavailable: "Noch nichts rückgängig zu machen",
+      undoAddPlayer: "Spieler hinzufügen",
+      undoRemovePlayer: "Spieler entfernen",
+      undoMovePlayer: "Spieler umsortieren",
+      undoStartGame: "Spiel starten",
+      undoNewGame: "neues Spiel",
+      undoBid: "Ansage",
+      undoWon: "Stiche",
+      undoBonus: "Bonus",
+      undoConfirmBids: "Ansagen bestätigen",
+      undoRound: "Runde abschließen",
       gameRoundDoneDisabled: "Stich-Summe muss der Runde entsprechen ({won}/{round}).",
       gameRoundDoneReady: "Stich-Summe passt zur Runde ({won}/{round}).",
       gameBidDelta: "Ansage-Differenz",
@@ -210,7 +236,8 @@
     startedAt: null,
     players: [],
     current: {},
-    done: []
+    done: [],
+    undo: []
   };
 
   let state = load();
@@ -274,6 +301,12 @@
 
       s.current = (s.current && typeof s.current === "object") ? s.current : {};
       s.done = Array.isArray(s.done) ? s.done : [];
+      // Undo is additive: keep the original storage key and legacy game records.
+      s.undo = Array.isArray(s.undo) ? s.undo.filter((step) =>
+        step && typeof step.label === "string" && step.before &&
+        typeof step.before === "object" && !Array.isArray(step.before) &&
+        Object.keys(step.before).every((key) => key !== "undo" && key in DEFAULT)
+      ) : [];
 
       for(const p of s.players) ensureCurrent(s, p.id);
       if(s.mode === "game" && !s.sessionId) s.sessionId = uid();
@@ -287,6 +320,81 @@
 
   function save(){
     localStorage.setItem(KEY, JSON.stringify(state));
+  }
+
+  // Store only changed top-level fields, never recursive copies of the journal.
+  // All consequences of one tap (including auto-fill) form a single undo step.
+  function change(label, mutate){
+    const { undo, ...game } = state;
+    const before = structuredClone(game);
+    mutate();
+    normalizeCurrent();
+    const previous = {};
+    for(const key of Object.keys(before)){
+      if(JSON.stringify(before[key]) !== JSON.stringify(state[key])) previous[key] = before[key];
+    }
+    if(Object.keys(previous).length === 0) return;
+    state.undo = [...undo, { label, before: previous }];
+    save();
+    if(before.sessionId === state.sessionId && previous.done) upsertArchiveFromState();
+    render();
+  }
+
+  function normalizeCurrent(){
+    for(const p of state.players){
+      ensureCurrent(state, p.id);
+      const cur = state.current[p.id];
+      cur.bid = String(clamp(safeInt(cur.bid), 0, state.round));
+      cur.won = String(clamp(safeInt(cur.won), 0, state.round));
+      cur.pirates = String(clamp(safeInt(cur.pirates), 0, Math.min(MAX_PIRATES_BONUS, safeInt(cur.won))));
+    }
+  }
+
+  function legacyUndoLabel(){
+    if(state.mode !== "game") return null;
+    if(inResultsPhase()) return "undoConfirmBids";
+    return state.done.length ? "undoRound" : null;
+  }
+
+  function undoLastAction(){
+    const sessionId = state.sessionId;
+    const done = JSON.stringify(state.done);
+    const step = state.undo.pop();
+    if(step){
+      Object.assign(state, step.before);
+    } else if(legacyUndoLabel()){
+      // Older versions saved round entries but no individual input history.
+      if(inResultsPhase()){
+        state.roundPhase = "bids";
+      } else {
+        const rec = state.done.pop();
+        state.round = rec.round;
+        state.roundPhase = "results";
+        state.current = {};
+        for(const p of state.players){
+          const entry = rec.entries?.[p.id] || {};
+          state.current[p.id] = {
+            bid: String(safeInt(entry.bid)), won: String(safeInt(entry.won)),
+            pirates: String(safeInt(entry.pirates)), mermaid: !!entry.mermaid,
+            wonTouched: true
+          };
+          p.total -= safeInt(entry.pts);
+        }
+      }
+    } else return;
+    save();
+    if(sessionId === state.sessionId && done !== JSON.stringify(state.done)) upsertArchiveFromState();
+    render();
+  }
+
+  function renderUndo(){
+    const label = state.undo.at(-1)?.label || legacyUndoLabel();
+    for(const id of ["#btnUndoSetup", "#btnUndoGame"]){
+      const button = $(id);
+      button.textContent = label ? tf("undoAction", { action: t(label) }) : t("undo");
+      button.disabled = !label;
+      button.title = label ? button.textContent : t("undoUnavailable");
+    }
   }
 
   function loadArchive(){
@@ -605,7 +713,12 @@
   function upsertArchiveFromState(){
     const finishedAt = nowIso();
     const rec = buildArchivedGameFromState(finishedAt);
-    if(!rec) return;
+    if(!rec){
+      // Reopening the first round removes this session from statistics only.
+      archivedGames = archivedGames.filter((game) => game.sessionId !== state.sessionId);
+      saveArchive();
+      return;
+    }
 
     const index = archivedGames.findIndex((g) => g.sessionId === rec.sessionId);
     if(index >= 0){
@@ -677,6 +790,7 @@
 
   function render(){
     applyStaticTranslations();
+    renderUndo();
 
     const setup = $("#setupScreen");
     const game = $("#gameScreen");
@@ -798,20 +912,14 @@
 
     const tIdx = turnIndex();
     const resultsPhase = inResultsPhase();
-    const changedByAutoFill = resultsPhase ? autoFillLastWon() : false;
-    if(changedByAutoFill) save();
 
     state.players.forEach((p, idx) => {
-      ensureCurrent(state, p.id);
       const cur = state.current[p.id];
       const bidValue = clamp(safeInt(cur.bid), 0, state.round);
       const wonValue = clamp(safeInt(cur.won), 0, state.round);
       const bonusEnabled = bonusAllowed(bidValue, wonValue);
       const piratesMax = Math.min(MAX_PIRATES_BONUS, wonValue);
       const piratesValue = clamp(safeInt(cur.pirates), 0, piratesMax);
-      cur.bid = String(bidValue);
-      cur.won = String(wonValue);
-      cur.pirates = String(piratesValue);
       const rPts = totalRoundPoints(state.round, {
         bid: bidValue,
         won: wonValue,
@@ -850,13 +958,9 @@
           min: 0,
           max: state.round,
           selected: bidValue,
-          onPick: (v) => {
+          onPick: (v) => change("undoBid", () => {
             cur.bid = String(v);
-            save();
-            renderEntries();
-            renderRoundActions();
-            renderHistory();
-          }
+          })
         }));
         inputs.appendChild(fBid);
       }
@@ -868,17 +972,13 @@
           min: 0,
           max: state.round,
           selected: wonValue,
-          onPick: (v) => {
+          onPick: (v) => change("undoWon", () => {
             cur.won = String(v);
             cur.wonTouched = true;
             autoFillLastWon();
             const maxPirates = Math.min(MAX_PIRATES_BONUS, v);
             cur.pirates = String(clamp(safeInt(cur.pirates), 0, maxPirates));
-            save();
-            renderEntries();
-            renderRoundActions();
-            renderHistory();
-          }
+          })
         }));
         inputs.appendChild(fWon);
 
@@ -890,12 +990,9 @@
           max: piratesMax,
           selected: bonusEnabled ? piratesValue : 0,
           disabled: !bonusEnabled,
-          onPick: (v) => {
+          onPick: (v) => change("undoBonus", () => {
             cur.pirates = String(v);
-            save();
-            renderEntries();
-            renderHistory();
-          }
+          })
         }));
         bonus.appendChild(fPir);
 
@@ -905,12 +1002,9 @@
           active: bonusEnabled && !!cur.mermaid,
           text: t("entryMermaidToggle"),
           disabled: !bonusEnabled,
-          onToggle: () => {
+          onToggle: () => change("undoBonus", () => {
             cur.mermaid = !cur.mermaid;
-            save();
-            renderEntries();
-            renderHistory();
-          }
+          })
         }));
         bonus.appendChild(fMer);
         inputs.appendChild(bonus);
@@ -923,14 +1017,12 @@
 
   function sumBids(){
     return state.players.reduce((sum, p) => {
-      ensureCurrent(state, p.id);
       return sum + clamp(safeInt(state.current[p.id].bid), 0, state.round);
     }, 0);
   }
 
   function sumWon(){
     return state.players.reduce((sum, p) => {
-      ensureCurrent(state, p.id);
       return sum + clamp(safeInt(state.current[p.id].won), 0, state.round);
     }, 0);
   }
@@ -1755,29 +1847,28 @@
     if(state.players.some((p) => p.name.toLowerCase() === name.toLowerCase())) return;
 
     const p = { id: uid(), name, total: 0 };
-    state.players.push(p);
-    ensureCurrent(state, p.id);
-
-    $("#playerName").value = "";
-    save();
-    render();
+    change("undoAddPlayer", () => {
+      state.players.push(p);
+      ensureCurrent(state, p.id);
+      $("#playerName").value = "";
+    });
   }
 
   function removePlayerSetup(pid){
-    state.players = state.players.filter((p) => p.id !== pid);
-    delete state.current[pid];
-    save();
-    render();
+    change("undoRemovePlayer", () => {
+      state.players = state.players.filter((p) => p.id !== pid);
+      delete state.current[pid];
+    });
   }
 
   function movePlayer(index, delta){
     const j = index + delta;
     if(j < 0 || j >= state.players.length) return;
-    const a = state.players[index];
-    state.players[index] = state.players[j];
-    state.players[j] = a;
-    save();
-    render();
+    change("undoMovePlayer", () => {
+      const a = state.players[index];
+      state.players[index] = state.players[j];
+      state.players[j] = a;
+    });
   }
 
   function startGame(){
@@ -1786,77 +1877,76 @@
       return;
     }
 
-    for(const p of state.players) p.total = 0;
-    state.done = [];
-    state.round = 1;
-    state.roundPhase = "bids";
-    state.sessionId = uid();
-    state.startedAt = nowIso();
-    state.current = {};
-    for(const p of state.players) ensureCurrent(state, p.id);
+    change("undoStartGame", () => {
+      for(const p of state.players) p.total = 0;
+      state.done = [];
+      state.round = 1;
+      state.roundPhase = "bids";
+      state.sessionId = uid();
+      state.startedAt = nowIso();
+      state.current = {};
+      for(const p of state.players) ensureCurrent(state, p.id);
 
-    state.mode = "game";
-    save();
-    render();
+      state.mode = "game";
+    });
   }
 
   function newGame(){
     if(!confirm(t("confirmNewGame"))) return;
-    state = structuredClone(DEFAULT);
-    save();
-    render();
+    change("undoNewGame", () => {
+      state = structuredClone(DEFAULT);
+    });
   }
 
   function roundDone(){
     if(state.players.length === 0) return;
     if(!inResultsPhase()){
-      for(const p of state.players){
-        ensureCurrent(state, p.id);
-        const cur = state.current[p.id];
-        cur.wonTouched = false;
-      }
-      state.roundPhase = "results";
-      save();
-      render();
+      change("undoConfirmBids", () => {
+        for(const p of state.players){
+          ensureCurrent(state, p.id);
+          const cur = state.current[p.id];
+          cur.wonTouched = false;
+        }
+        state.roundPhase = "results";
+        autoFillLastWon();
+      });
       return;
     }
     if(sumWon() !== state.round) return;
 
-    const rec = { round: state.round, entries: {}, totals: {} };
+    change("undoRound", () => {
+      const rec = { round: state.round, entries: {}, totals: {} };
 
-    for(const p of state.players){
-      ensureCurrent(state, p.id);
-      const cur = state.current[p.id];
+      for(const p of state.players){
+        ensureCurrent(state, p.id);
+        const cur = state.current[p.id];
 
-      const entry = { bid: cur.bid, won: cur.won, pirates: cur.pirates, mermaid: cur.mermaid };
-      const bonusApplies = bonusAllowed(entry.bid, entry.won);
-      const pirates = bonusApplies ? clamp(safeInt(entry.pirates), 0, MAX_PIRATES_BONUS) : 0;
-      const mermaid = bonusApplies ? !!entry.mermaid : false;
-      const scored = { bid: entry.bid, won: entry.won, pirates, mermaid };
-      const pts = totalRoundPoints(state.round, scored);
+        const entry = { bid: cur.bid, won: cur.won, pirates: cur.pirates, mermaid: cur.mermaid };
+        const bonusApplies = bonusAllowed(entry.bid, entry.won);
+        const pirates = bonusApplies ? clamp(safeInt(entry.pirates), 0, MAX_PIRATES_BONUS) : 0;
+        const mermaid = bonusApplies ? !!entry.mermaid : false;
+        const scored = { bid: entry.bid, won: entry.won, pirates, mermaid };
+        const pts = totalRoundPoints(state.round, scored);
 
-      p.total += pts;
+        p.total += pts;
 
-      rec.entries[p.id] = {
-        bid: clamp(safeInt(entry.bid), 0, state.round),
-        won: clamp(safeInt(entry.won), 0, state.round),
-        pirates,
-        mermaid,
-        pts
-      };
-      rec.totals[p.id] = p.total;
-    }
+        rec.entries[p.id] = {
+          bid: clamp(safeInt(entry.bid), 0, state.round),
+          won: clamp(safeInt(entry.won), 0, state.round),
+          pirates,
+          mermaid,
+          pts
+        };
+        rec.totals[p.id] = p.total;
+      }
 
-    state.done.push(rec);
+      state.done.push(rec);
 
-    state.round += 1;
-    state.roundPhase = "bids";
-    state.current = {};
-    for(const p of state.players) ensureCurrent(state, p.id);
-
-    upsertArchiveFromState();
-    save();
-    render();
+      state.round += 1;
+      state.roundPhase = "bids";
+      state.current = {};
+      for(const p of state.players) ensureCurrent(state, p.id);
+    });
   }
 
   $("#btnAdd").onclick = () => addPlayer($("#playerName").value);
@@ -1869,6 +1959,8 @@
   $("#btnSetupStats").onclick = () => openArchiveModal("stats");
 
   $("#btnStart").onclick = startGame;
+  $("#btnUndoSetup").onclick = undoLastAction;
+  $("#btnUndoGame").onclick = undoLastAction;
   $("#btnNewGame").onclick = newGame;
   $("#btnRoundAction").onclick = roundDone;
   $("#btnHistory").onclick = openHistoryModal;
