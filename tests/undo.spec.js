@@ -25,80 +25,67 @@ test.beforeEach(async ({ page }) => {
   await page.route('https://cdn.jsdelivr.net/**', (route) => route.abort());
 });
 
-test('every input, auto-fill, bonus and round transition restores exactly after reload', async ({ page }) => {
+test('undo skips input selections and returns directly to bids', async ({ page }) => {
   await setup(page);
-  const initial = gameOnly(await read(page));
-  const steps = [];
-  async function step(action) {
-    steps.push(gameOnly(await read(page)));
-    await action();
-  }
-  await step(() => pick(page, 0, '.rowBid', 1));
-  await step(() => page.locator('#btnRoundAction').click());
-  await step(() => pick(page, 0, '.rowWon', 1));
-  await step(() => pick(page, 1, '.rowWon', 0));
-  await step(() => pick(page, 0, '.bonusPirates', 1));
-  await step(() => page.locator('.bonusMermaid button').first().click());
-  const results = await read(page);
-  await step(() => page.locator('#btnRoundAction').click());
-  let state = await read(page);
-  expect(state.round).toBe(2);
-  expect(state.players.map((p) => p.total)).toEqual([100, 10, 10]);
-  expect(state.done[0].entries[state.players[0].id].pts).toBe(100);
-  await step(() => pick(page, 1, '.rowBid', 2));
-  await page.reload();
-  for (const expected of steps.reverse()) {
-    await page.locator('#btnUndoGame').click();
-    expect(gameOnly(await read(page))).toEqual(expected);
-  }
-  expect(gameOnly(await read(page))).toEqual(initial);
-  expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), ARCHIVE)).toEqual([]);
-  expect(results.current[results.players[1].id].wonTouched).toBe(true);
-  expect(results.current[results.players[2].id].wonTouched).toBe(false);
-});
-
-test('undo auto-filled wins and clamped bonuses as one action; rendering and repeated taps add no history', async ({ page }) => {
-  await setup(page);
-  await pick(page, 2, '.rowBid', 1);
-  await page.locator('#btnRoundAction').click();
-  await pick(page, 0, '.rowWon', 0);
-  await pick(page, 1, '.rowWon', 0);
-  await pick(page, 2, '.bonusPirates', 1);
-  const before = await read(page);
-  const last = before.players[2].id;
-  expect(before.current[last].won).toBe('1');
-  await pick(page, 0, '.rowWon', 1);
-  expect((await read(page)).current[last].pirates).toBe('0');
-  await page.locator('#btnUndoGame').click();
-  expect(gameOnly(await read(page))).toEqual(gameOnly(before));
-  await pick(page, 0, '.rowWon', 0);
-  await page.setViewportSize({ width: 360, height: 640 });
-  await page.locator('#btnHistory').click();
-  await page.locator('#btnCloseHistory').click();
-  await page.reload();
-  expect(await read(page)).toEqual(before);
-});
-
-test('setup order, removal, game start and new game can all be undone', async ({ page }) => {
-  await setup(page);
-  await page.locator('#btnUndoGame').click();
-  const before = gameOnly(await read(page));
-  await page.locator('#chips .chip').first().getByTitle('Move down').click();
-  await page.locator('#btnUndoSetup').click();
-  expect(gameOnly(await read(page))).toEqual(before);
-  await page.locator('#chips .chip').first().getByTitle('Remove', { exact: true }).click();
-  await page.locator('#btnUndoSetup').click();
-  expect(gameOnly(await read(page))).toEqual(before);
-  await page.locator('#btnStart').click();
   await pick(page, 0, '.rowBid', 1);
-  const running = gameOnly(await read(page));
-  page.once('dialog', (dialog) => dialog.accept());
-  await page.locator('#btnNewGame').click();
+  await pick(page, 0, '.rowBid', 0);
+  await pick(page, 0, '.rowBid', 1);
+  await expect(page.locator('#btnUndoGame')).toBeDisabled();
+  await page.locator('#btnRoundAction').click();
+  await pick(page, 0, '.rowWon', 1);
+  await pick(page, 1, '.rowWon', 0);
+  await pick(page, 0, '.bonusPirates', 1);
+  await page.locator('.bonusMermaid button').first().click();
+  const before = await read(page);
   await page.reload();
-  await page.locator('#btnUndoSetup').click();
-  expect(gameOnly(await read(page))).toEqual(running);
   await page.locator('#btnUndoGame').click();
-  expect((await read(page)).current[running.players[0].id].bid).toBe('0');
+  const after = await read(page);
+  expect(after.roundPhase).toBe('bids');
+  expect(after.current).toEqual(before.current);
+  await expect(page.locator('#btnUndoGame')).toBeDisabled();
+});
+
+test('round undo restores scores and results in one tap after editing the next bids', async ({ page }) => {
+  await setup(page);
+  await pick(page, 0, '.rowBid', 1);
+  await page.locator('#btnRoundAction').click();
+  await pick(page, 0, '.rowWon', 1);
+  await pick(page, 1, '.rowWon', 0);
+  await pick(page, 0, '.bonusPirates', 1);
+  await page.locator('.bonusMermaid button').first().click();
+  const results = gameOnly(await read(page));
+  await page.locator('#btnRoundAction').click();
+  expect((await read(page)).players.map((p) => p.total)).toEqual([100, 10, 10]);
+  await pick(page, 1, '.rowBid', 2);
+  await pick(page, 2, '.rowBid', 1);
+  await page.reload();
+  await page.locator('#btnUndoGame').click();
+  expect(gameOnly(await read(page))).toEqual(results);
+  expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), ARCHIVE)).toEqual([]);
+  await page.locator('#btnRoundAction').click();
+  expect((await read(page)).players.map((p) => p.total)).toEqual([100, 10, 10]);
+});
+
+test('old granular undo journals cannot replay clicks or cross into another game', async ({ page }) => {
+  await setup(page);
+  await page.locator('#btnRoundAction').click();
+  const before = await read(page);
+  await page.evaluate((key) => {
+    const state = JSON.parse(localStorage.getItem(key));
+    state.undo = [
+      { label: 'undoNewGame', before: { sessionId: 'other-game', round: 8 } },
+      { label: 'undoWon', before: { current: {} } }
+    ];
+    localStorage.setItem(key, JSON.stringify(state));
+  }, KEY);
+  await page.reload();
+  await page.locator('#btnUndoGame').click();
+  const after = await read(page);
+  expect(after.sessionId).toBe(before.sessionId);
+  expect(after.round).toBe(1);
+  expect(after.roundPhase).toBe('bids');
+  expect(after.current).toEqual(before.current);
+  await expect(page.locator('#btnUndoGame')).toBeDisabled();
 });
 
 test('legacy saved games reopen rounds, preserve other archives and update statistics on correction', async ({ page }) => {

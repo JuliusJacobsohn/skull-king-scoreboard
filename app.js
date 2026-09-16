@@ -301,12 +301,8 @@
 
       s.current = (s.current && typeof s.current === "object") ? s.current : {};
       s.done = Array.isArray(s.done) ? s.done : [];
-      // Undo is additive: keep the original storage key and legacy game records.
-      s.undo = Array.isArray(s.undo) ? s.undo.filter((step) =>
-        step && typeof step.label === "string" && step.before &&
-        typeof step.before === "object" && !Array.isArray(step.before) &&
-        Object.keys(step.before).every((key) => key !== "undo" && key in DEFAULT)
-      ) : [];
+      // Old tap-by-tap journals are replaced by round/phase undo.
+      s.undo = [];
 
       for(const p of s.players) ensureCurrent(s, p.id);
       if(s.mode === "game" && !s.sessionId) s.sessionId = uid();
@@ -322,21 +318,14 @@
     localStorage.setItem(KEY, JSON.stringify(state));
   }
 
-  // Store only changed top-level fields, never recursive copies of the journal.
-  // All consequences of one tap (including auto-fill) form a single undo step.
-  function change(label, mutate){
-    const { undo, ...game } = state;
-    const before = structuredClone(game);
+  // Selections are directly editable. Only phase/round boundaries need undo.
+  function change(mutate){
+    const sessionId = state.sessionId;
+    const rounds = state.done.length;
     mutate();
     normalizeCurrent();
-    const previous = {};
-    for(const key of Object.keys(before)){
-      if(JSON.stringify(before[key]) !== JSON.stringify(state[key])) previous[key] = before[key];
-    }
-    if(Object.keys(previous).length === 0) return;
-    state.undo = [...undo, { label, before: previous }];
     save();
-    if(before.sessionId === state.sessionId && previous.done) upsertArchiveFromState();
+    if(sessionId === state.sessionId && rounds !== state.done.length) upsertArchiveFromState();
     render();
   }
 
@@ -350,7 +339,7 @@
     }
   }
 
-  function legacyUndoLabel(){
+  function undoLabel(){
     if(state.mode !== "game") return null;
     if(inResultsPhase()) return "undoConfirmBids";
     return state.done.length ? "undoRound" : null;
@@ -359,21 +348,17 @@
   function undoLastAction(){
     const sessionId = state.sessionId;
     const done = JSON.stringify(state.done);
-    const step = state.undo.pop();
-    if(step){
-      Object.assign(state, step.before);
-    } else if(legacyUndoLabel()){
-      // Older versions saved round entries but no individual input history.
+    if(undoLabel()){
       if(inResultsPhase()){
         state.roundPhase = "bids";
       } else {
         const rec = state.done.pop();
         state.round = rec.round;
         state.roundPhase = "results";
-        state.current = {};
+        state.current = structuredClone(rec.input || {});
         for(const p of state.players){
           const entry = rec.entries?.[p.id] || {};
-          state.current[p.id] = {
+          state.current[p.id] ||= {
             bid: String(safeInt(entry.bid)), won: String(safeInt(entry.won)),
             pirates: String(safeInt(entry.pirates)), mermaid: !!entry.mermaid,
             wonTouched: true
@@ -388,8 +373,8 @@
   }
 
   function renderUndo(){
-    const label = state.undo.at(-1)?.label || legacyUndoLabel();
-    for(const id of ["#btnUndoSetup", "#btnUndoGame"]){
+    const label = undoLabel();
+    for(const id of ["#btnUndoGame"]){
       const button = $(id);
       button.textContent = `↶ ${t("undo")}`;
       button.disabled = !label;
@@ -959,7 +944,7 @@
           min: 0,
           max: state.round,
           selected: bidValue,
-          onPick: (v) => change("undoBid", () => {
+          onPick: (v) => change(() => {
             cur.bid = String(v);
           })
         }));
@@ -973,7 +958,7 @@
           min: 0,
           max: state.round,
           selected: wonValue,
-          onPick: (v) => change("undoWon", () => {
+          onPick: (v) => change(() => {
             cur.won = String(v);
             cur.wonTouched = true;
             autoFillLastWon();
@@ -991,7 +976,7 @@
           max: piratesMax,
           selected: bonusEnabled ? piratesValue : 0,
           disabled: !bonusEnabled,
-          onPick: (v) => change("undoBonus", () => {
+          onPick: (v) => change(() => {
             cur.pirates = String(v);
           })
         }));
@@ -1003,7 +988,7 @@
           active: bonusEnabled && !!cur.mermaid,
           text: t("entryMermaidToggle"),
           disabled: !bonusEnabled,
-          onToggle: () => change("undoBonus", () => {
+          onToggle: () => change(() => {
             cur.mermaid = !cur.mermaid;
           })
         }));
@@ -1848,7 +1833,7 @@
     if(state.players.some((p) => p.name.toLowerCase() === name.toLowerCase())) return;
 
     const p = { id: uid(), name, total: 0 };
-    change("undoAddPlayer", () => {
+    change(() => {
       state.players.push(p);
       ensureCurrent(state, p.id);
       $("#playerName").value = "";
@@ -1856,7 +1841,7 @@
   }
 
   function removePlayerSetup(pid){
-    change("undoRemovePlayer", () => {
+    change(() => {
       state.players = state.players.filter((p) => p.id !== pid);
       delete state.current[pid];
     });
@@ -1865,7 +1850,7 @@
   function movePlayer(index, delta){
     const j = index + delta;
     if(j < 0 || j >= state.players.length) return;
-    change("undoMovePlayer", () => {
+    change(() => {
       const a = state.players[index];
       state.players[index] = state.players[j];
       state.players[j] = a;
@@ -1878,7 +1863,7 @@
       return;
     }
 
-    change("undoStartGame", () => {
+    change(() => {
       for(const p of state.players) p.total = 0;
       state.done = [];
       state.round = 1;
@@ -1894,7 +1879,7 @@
 
   function newGame(){
     if(!confirm(t("confirmNewGame"))) return;
-    change("undoNewGame", () => {
+    change(() => {
       state = structuredClone(DEFAULT);
     });
   }
@@ -1902,7 +1887,7 @@
   function roundDone(){
     if(state.players.length === 0) return;
     if(!inResultsPhase()){
-      change("undoConfirmBids", () => {
+      change(() => {
         for(const p of state.players){
           ensureCurrent(state, p.id);
           const cur = state.current[p.id];
@@ -1915,8 +1900,8 @@
     }
     if(sumWon() !== state.round) return;
 
-    change("undoRound", () => {
-      const rec = { round: state.round, entries: {}, totals: {} };
+    change(() => {
+      const rec = { round: state.round, entries: {}, totals: {}, input: structuredClone(state.current) };
 
       for(const p of state.players){
         ensureCurrent(state, p.id);
@@ -1960,7 +1945,6 @@
   $("#btnSetupStats").onclick = () => openArchiveModal("stats");
 
   $("#btnStart").onclick = startGame;
-  $("#btnUndoSetup").onclick = undoLastAction;
   $("#btnUndoGame").onclick = undoLastAction;
   $("#btnNewGame").onclick = newGame;
   $("#btnRoundAction").onclick = roundDone;

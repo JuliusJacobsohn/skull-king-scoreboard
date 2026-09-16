@@ -17,7 +17,7 @@ It is designed for quick mobile use, works without a backend, and persists state
   - **History**: per-round points and totals table.
   - **Graph** (default): score progression chart (x = round, y = total score) with one line color per player, starting at round 0 with zero scores.
 - Local persistence via `localStorage`.
-- Undo bids, results, bonuses, completed rounds, player setup, and new-game resets, even after reloading.
+- Undo bid confirmation or reopen a completed round to correct its results, even after reloading. Change individual bids, results, and bonuses directly.
 - New game reset with confirmation prompt.
 - Mobile history and statistics use one vertical scrolling area per tab; wide tables can also be swiped horizontally.
 
