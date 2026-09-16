@@ -3,7 +3,10 @@ const KEY = 'skullking_mobile_v1';
 const ARCHIVE = `${KEY}_archived_games`;
 
 async function read(page) {
-  return page.evaluate((key) => JSON.parse(localStorage.getItem(key)), KEY);
+  return page.evaluate((key) => {
+    const { openGames, setupDraft, ...state } = JSON.parse(localStorage.getItem(key));
+    return state;
+  }, KEY);
 }
 function gameOnly(state) {
   const { undo, ...game } = state;
@@ -102,12 +105,12 @@ test('legacy saved games reopen rounds, preserve other archives and update stati
     localStorage.setItem(archive, JSON.stringify([other, { ...other, id: 'legacy', sessionId: 'legacy' }]));
   }, { key: KEY, archive: ARCHIVE, oldGame, other });
   await page.reload();
-  expect(await read(page)).toEqual(oldGame);
+  expect(await read(page)).toEqual({ ...oldGame, undo: [] });
   await page.locator('#btnUndoGame').click();
   expect((await read(page)).players.map((p) => p.total)).toEqual([0, 0]);
   expect((await read(page)).current.a.bid).toBe('1');
   let archive = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), ARCHIVE);
-  expect(archive).toEqual([other]);
+  expect(archive).toEqual([{ ...other, status: 'open' }]);
   await page.reload();
   await page.locator('#btnUndoGame').click();
   await pick(page, 0, '.rowBid', 0);
@@ -117,7 +120,7 @@ test('legacy saved games reopen rounds, preserve other archives and update stati
   archive = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), ARCHIVE);
   expect(archive).toHaveLength(2);
   expect(archive.find((g) => g.sessionId === 'legacy').finalTotals.map((p) => p.total)).toEqual([-10, -10]);
-  expect(archive.find((g) => g.sessionId === 'other')).toEqual(other);
+  expect(archive.find((g) => g.sessionId === 'other')).toEqual({ ...other, status: 'open' });
   await page.locator('#btnUndoGame').click();
   await page.locator('#btnRoundAction').click();
   expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)).length, ARCHIVE)).toBe(2);

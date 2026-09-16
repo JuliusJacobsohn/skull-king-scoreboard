@@ -24,21 +24,24 @@
       setupMoveDownShort: "Down",
       setupRemoveShort: "X",
       gameRound: "Round",
-      gameNewGame: "New game",
+      gameEndGame: "End game",
+      mainMenu: "Main menu",
+      cancel: "Cancel",
+      openGames: "Open games",
+      noOpenGames: "No open games.",
+      gameOpen: "Open",
+      gameFinished: "Finished",
+      markFinished: "Mark finished",
+      gameBids: "Bids",
+      gameResults: "Results",
+      finishNeedsRound: "Complete the first round before ending the game.",
+      confirmEndGame: "End this game? Scores through round {round} will be saved. An unfinished round will not count.",
       gameHistory: "History",
       gameRoundDone: "Round done",
       gameConfirmBids: "Confirm bids",
       undo: "Undo",
       undoAction: "Undo: {action}",
       undoUnavailable: "Nothing to undo yet",
-      undoAddPlayer: "add player",
-      undoRemovePlayer: "remove player",
-      undoMovePlayer: "reorder players",
-      undoStartGame: "start game",
-      undoNewGame: "new game",
-      undoBid: "bid",
-      undoWon: "won tricks",
-      undoBonus: "bonus",
       undoConfirmBids: "confirm bids",
       undoRound: "complete round",
       gameRoundDoneDisabled: "Won total must equal round ({won}/{round}).",
@@ -102,7 +105,6 @@
       graphXAxis: "Round",
       graphYAxis: "Score",
       alertAddPlayer: "Add at least one player.",
-      confirmNewGame: "Start a new game? This will clear the current players and round history.",
       fallbackPlayerName: "Player"
     },
     de: {
@@ -125,21 +127,24 @@
       setupMoveDownShort: "Runter",
       setupRemoveShort: "X",
       gameRound: "Runde",
-      gameNewGame: "Neues Spiel",
+      gameEndGame: "Spiel beenden",
+      mainMenu: "Hauptmenü",
+      cancel: "Abbrechen",
+      openGames: "Offene Spiele",
+      noOpenGames: "Keine offenen Spiele.",
+      gameOpen: "Offen",
+      gameFinished: "Beendet",
+      markFinished: "Als beendet markieren",
+      gameBids: "Ansagen",
+      gameResults: "Ergebnisse",
+      finishNeedsRound: "Schließe die erste Runde ab, bevor du das Spiel beendest.",
+      confirmEndGame: "Spiel beenden? Die Punkte bis Runde {round} werden gespeichert. Eine unvollständige Runde zählt nicht.",
       gameHistory: "Verlauf",
       gameRoundDone: "Runde abschließen",
       gameConfirmBids: "Ansagen bestätigen",
       undo: "Rückgängig",
       undoAction: "Rückgängig: {action}",
       undoUnavailable: "Noch nichts rückgängig zu machen",
-      undoAddPlayer: "Spieler hinzufügen",
-      undoRemovePlayer: "Spieler entfernen",
-      undoMovePlayer: "Spieler umsortieren",
-      undoStartGame: "Spiel starten",
-      undoNewGame: "neues Spiel",
-      undoBid: "Ansage",
-      undoWon: "Stiche",
-      undoBonus: "Bonus",
       undoConfirmBids: "Ansagen bestätigen",
       undoRound: "Runde abschließen",
       gameRoundDoneDisabled: "Stich-Summe muss der Runde entsprechen ({won}/{round}).",
@@ -203,7 +208,6 @@
       graphXAxis: "Runde",
       graphYAxis: "Punkte",
       alertAddPlayer: "Mindestens einen Spieler hinzufügen.",
-      confirmNewGame: "Neues Spiel starten? Aktuelle Spieler und Rundendaten werden zurückgesetzt.",
       fallbackPlayerName: "Spieler"
     }
   };
@@ -221,6 +225,7 @@
   let historyChart = null;
   let archiveTab = "games";
   let statsSelectedPlayer = "";
+  let pendingFinishId = null;
   let statsCharts = {
     winLoss: null,
     points: null,
@@ -240,8 +245,13 @@
     undo: []
   };
 
-  let state = load();
+  const stored = readStored(KEY, {});
+  let state = normalizeState(stored);
   let archivedGames = loadArchive();
+  const openGames = new Map();
+  let setupDraft = normalizeState(stored.setupDraft || (state.mode === "setup" ? state : DEFAULT));
+  initializeGames();
+  save();
   saveArchive();
 
   function t(key){
@@ -279,11 +289,17 @@
     render();
   }
 
-  function load(){
+  function readStored(key, fallback){
+    try { return JSON.parse(localStorage.getItem(key)) || fallback; }
+    catch { return fallback; }
+  }
+
+  function normalizeState(source){
     try {
-      const raw = localStorage.getItem(KEY);
-      if(!raw) return structuredClone(DEFAULT);
-      const s = Object.assign(structuredClone(DEFAULT), JSON.parse(raw));
+      const s = structuredClone(DEFAULT);
+      for(const key of Object.keys(DEFAULT)){
+        if(source && Object.prototype.hasOwnProperty.call(source, key)) s[key] = structuredClone(source[key]);
+      }
 
       s.mode = (s.mode === "game") ? "game" : "setup";
       s.round = Math.max(1, safeInt(s.round));
@@ -314,8 +330,138 @@
     }
   }
 
+  function initializeGames(){
+    // Keep an untouched copy before the first multi-game migration.
+    const backupKey = `${KEY}_backup_before_sessions`;
+    if(!Array.isArray(stored.openGames) && !localStorage.getItem(backupKey)){
+      const oldState = localStorage.getItem(KEY);
+      const oldArchive = localStorage.getItem(ARCHIVE_KEY);
+      if(oldState || oldArchive) localStorage.setItem(backupKey, JSON.stringify({ state: oldState, archive: oldArchive }));
+    }
+    const finished = new Set(archivedGames.filter((game) => game.status === "finished").map((game) => game.sessionId));
+    for(const saved of Array.isArray(stored.openGames) ? stored.openGames : []){
+      const game = normalizeState(saved);
+      if(game.mode === "game" && !finished.has(game.sessionId)) openGames.set(game.sessionId, game);
+    }
+    // The active snapshot is freshest and includes any unfinished inputs.
+    if(state.mode === "game"){
+      if(finished.has(state.sessionId)) state = structuredClone(setupDraft);
+      else openGames.set(state.sessionId, structuredClone(state));
+    }
+    for(const archived of archivedGames){
+      if(archived.status === "finished" || openGames.has(archived.sessionId)) continue;
+      const game = restoreArchivedGame(archived);
+      if(game) openGames.set(game.sessionId, game);
+    }
+  }
+
+  function restoreArchivedGame(archived){
+    // Summary-only archives remain readable and finishable; do not invent rounds.
+    if(!archived.players.length || !archived.rounds.length) return null;
+    const players = archived.players.map((name, index) => ({
+      id: `${archived.sessionId}-player-${index}`, name,
+      total: safeInt(archived.finalTotals.find((row) => normalizeName(row.name) === normalizeName(name))?.total)
+    }));
+    const done = archived.rounds.map((round) => {
+      const entries = {}, totals = {};
+      for(const p of players){
+        const entry = round.entries.find((row) => normalizeName(row.name) === normalizeName(p.name));
+        if(entry){
+          const { name, total, ...scored } = entry;
+          entries[p.id] = scored;
+          totals[p.id] = total;
+        }
+      }
+      return { round: round.round, entries, totals };
+    });
+    return normalizeState({
+      mode: "game", sessionId: archived.sessionId, startedAt: archived.startedAt,
+      round: Math.max(...done.map((round) => round.round)) + 1,
+      players, done
+    });
+  }
+
   function save(){
-    localStorage.setItem(KEY, JSON.stringify(state));
+    if(state.mode === "game") openGames.set(state.sessionId, structuredClone(state));
+    else setupDraft = structuredClone(state);
+    // The active game, suspended games and setup draft are written atomically.
+    localStorage.setItem(KEY, JSON.stringify({ ...state, openGames: [...openGames.values()], setupDraft }));
+  }
+
+  function mainMenu(){
+    save();
+    state = structuredClone(setupDraft);
+    save();
+    render();
+  }
+
+  function resumeGame(sessionId){
+    const game = openGames.get(sessionId);
+    if(!game) return;
+    save();
+    state = structuredClone(game);
+    closeArchiveModal();
+    historyTab = "graph";
+    save();
+    render();
+  }
+
+  function recordToFinish(sessionId){
+    const game = state.mode === "game" && state.sessionId === sessionId ? state : openGames.get(sessionId);
+    const archived = archivedGames.find((record) => record.sessionId === sessionId);
+    const record = archived || (game ? buildArchivedGameFromState(game) : null);
+    return record && record.roundsPlayed >= 1 && record.status !== "finished" ? record : null;
+  }
+
+  function finishGame(sessionId = state.sessionId){
+    const record = recordToFinish(sessionId);
+    if(!record) return;
+    pendingFinishId = sessionId;
+    const round = record.rounds.at(-1)?.round || record.roundsPlayed;
+    setText("#finishMessage", tf("confirmEndGame", { round }));
+    $("#finishDialog").showModal();
+    syncModalOpenClass();
+  }
+
+  function closeFinishDialog(){
+    $("#finishDialog").close();
+    pendingFinishId = null;
+    syncModalOpenClass();
+  }
+
+  function completeFinishGame(){
+    const sessionId = pendingFinishId;
+    const record = recordToFinish(sessionId);
+    closeFinishDialog();
+    if(!record) return;
+    const stamp = nowIso();
+    const finished = { ...record, status: "finished", finishedAt: stamp, updatedAt: stamp };
+    archivedGames = dedupeArchive([...archivedGames.filter((item) => item.sessionId !== sessionId), finished]);
+    saveArchive();
+    openGames.delete(sessionId);
+    if(state.mode === "game" && state.sessionId === sessionId) state = structuredClone(setupDraft);
+    save();
+    render();
+  }
+
+  function renderOpenGames(){
+    const list = $("#openGamesList");
+    list.innerHTML = "";
+    if(!openGames.size){
+      list.appendChild(el("div", { className: "small", textContent: t("noOpenGames") }));
+      return;
+    }
+    for(const game of [...openGames.values()].sort((a, b) => parseStamp(b.startedAt) - parseStamp(a.startedAt))){
+      const button = el("button", { className: "openGameButton", type: "button" });
+      button.dataset.sessionId = game.sessionId;
+      button.appendChild(el("strong", { textContent: game.players.map((p) => p.name).join(", ") }));
+      button.appendChild(el("span", {
+        className: "small",
+        textContent: `${t("gameRound")} ${game.round} · ${t(game.roundPhase === "results" ? "gameResults" : "gameBids")} · ${formatStamp(game.startedAt)}`
+      }));
+      button.onclick = () => resumeGame(game.sessionId);
+      list.appendChild(button);
+    }
   }
 
   // Selections are directly editable. Only phase/round boundaries need undo.
@@ -433,6 +579,7 @@
     return {
       id: game.id ? String(game.id) : sessionId,
       sessionId,
+      status: game.status === "finished" ? "finished" : "open",
       startedAt,
       finishedAt,
       updatedAt,
@@ -495,7 +642,7 @@
     const archiveModal = $("#archiveModal");
     const historyOpen = !!historyModal && !historyModal.classList.contains("hidden");
     const archiveOpen = !!archiveModal && !archiveModal.classList.contains("hidden");
-    const anyOpen = historyOpen || archiveOpen;
+    const anyOpen = historyOpen || archiveOpen || $("#finishDialog").open;
     document.body.classList.toggle("modalOpen", !!anyOpen);
   }
 
@@ -526,7 +673,13 @@
     setText("#btnSetupHistory", t("setupSeeHistory"));
     setText("#btnSetupStats", t("setupPlayerStatistics"));
     setText("#roundPillText", t("gameRound"));
-    setText("#btnNewGame", t("gameNewGame"));
+    setText("#btnEndGame", t("gameEndGame"));
+    setText("#finishTitle", t("gameEndGame"));
+    setText("#btnConfirmFinish", t("gameEndGame"));
+    setText("#btnCancelFinish", t("cancel"));
+    setText("#btnMainMenu", t("mainMenu"));
+    setText("#mainMenuTitle", t("mainMenu"));
+    setText("#openGamesTitle", t("openGames"));
     setText("#btnHistory", t("gameHistory"));
     setText("#historyTitle", t("historyTitle"));
     setText("#btnCloseHistory", t("historyClose"));
@@ -658,12 +811,13 @@
     return result;
   }
 
-  function buildArchivedGameFromState(finishedAt){
-    if(!state.sessionId || state.done.length === 0) return null;
+  function buildArchivedGameFromState(game = state, finished = false){
+    const stamp = nowIso();
+    if(!game.sessionId || game.done.length === 0) return null;
 
-    const players = state.players.map((p) => p.name).filter(Boolean);
-    const rounds = state.done.map((roundRec) => {
-      const entries = state.players.map((p) => {
+    const players = game.players.map((p) => p.name).filter(Boolean);
+    const rounds = game.done.map((roundRec) => {
+      const entries = game.players.map((p) => {
         const entry = roundRec.entries?.[p.id] || {};
         return {
           name: p.name,
@@ -678,17 +832,18 @@
       return { round: Math.max(1, safeInt(roundRec.round)), entries };
     });
 
-    const finalTotals = state.players.map((p) => ({ name: p.name, total: safeInt(p.total) }));
+    const finalTotals = game.players.map((p) => ({ name: p.name, total: safeInt(p.total) }));
     const best = finalTotals.length ? Math.max(...finalTotals.map((r) => r.total)) : 0;
     const winners = finalTotals.filter((r) => r.total === best).map((r) => r.name);
 
     return {
-      id: state.sessionId,
-      sessionId: state.sessionId,
-      startedAt: state.startedAt || finishedAt,
-      finishedAt,
-      updatedAt: finishedAt,
-      roundsPlayed: state.done.length,
+      id: game.sessionId,
+      sessionId: game.sessionId,
+      startedAt: game.startedAt || stamp,
+      status: finished ? "finished" : "open",
+      finishedAt: finished ? stamp : null,
+      updatedAt: stamp,
+      roundsPlayed: game.done.length,
       players,
       rounds,
       finalTotals,
@@ -697,8 +852,7 @@
   }
 
   function upsertArchiveFromState(){
-    const finishedAt = nowIso();
-    const rec = buildArchivedGameFromState(finishedAt);
+    const rec = buildArchivedGameFromState();
     if(!rec){
       // Reopening the first round removes this session from statistics only.
       archivedGames = archivedGames.filter((game) => game.sessionId !== state.sessionId);
@@ -795,6 +949,7 @@
   }
 
   function renderSetup(){
+    renderOpenGames();
     renderRecentPlayers();
 
     const chips = $("#chips");
@@ -852,6 +1007,8 @@
   }
 
   function renderGame(){
+    $("#btnEndGame").disabled = state.done.length === 0;
+    $("#btnEndGame").title = state.done.length ? t("gameEndGame") : t("finishNeedsRound");
     $("#roundLabel").textContent = String(state.round);
 
     const sorted = [...state.players].sort((a, b) => (b.total - a.total));
@@ -1382,9 +1539,22 @@
         className: "archiveGameMeta",
         textContent: `${t("archivePlayers")}: ${(game.players || []).join(", ")}`
       }));
+      summary.appendChild(el("span", { className: "small", textContent: t(game.status === "finished" ? "gameFinished" : "gameOpen") }));
       card.appendChild(summary);
 
       const detail = el("div", { className: "archiveGameDetail" });
+      if(game.status !== "finished"){
+        const actions = el("div", { className: "row archiveGameActions" });
+        if(openGames.has(game.sessionId)){
+          const resume = el("button", { textContent: t("gameOpen"), className: "btnResumeArchived" });
+          resume.onclick = () => resumeGame(game.sessionId);
+          actions.appendChild(resume);
+        }
+        const finish = el("button", { textContent: t("markFinished"), className: "btnFinishArchived", disabled: game.roundsPlayed < 1 });
+        finish.onclick = () => finishGame(game.sessionId);
+        actions.appendChild(finish);
+        detail.appendChild(actions);
+      }
       const topScore = (game.finalTotals || []).reduce((mx, row) => Math.max(mx, safeInt(row.total)), Number.NEGATIVE_INFINITY);
       detail.appendChild(el("div", {
         className: "archiveStatsLine",
@@ -1874,13 +2044,7 @@
       for(const p of state.players) ensureCurrent(state, p.id);
 
       state.mode = "game";
-    });
-  }
-
-  function newGame(){
-    if(!confirm(t("confirmNewGame"))) return;
-    change(() => {
-      state = structuredClone(DEFAULT);
+      setupDraft = structuredClone(DEFAULT);
     });
   }
 
@@ -1946,7 +2110,14 @@
 
   $("#btnStart").onclick = startGame;
   $("#btnUndoGame").onclick = undoLastAction;
-  $("#btnNewGame").onclick = newGame;
+  $("#btnEndGame").onclick = () => finishGame();
+  $("#btnMainMenu").onclick = mainMenu;
+  $("#btnCancelFinish").onclick = closeFinishDialog;
+  $("#btnConfirmFinish").onclick = completeFinishGame;
+  $("#finishDialog").addEventListener("close", () => {
+    pendingFinishId = null;
+    syncModalOpenClass();
+  });
   $("#btnRoundAction").onclick = roundDone;
   $("#btnHistory").onclick = openHistoryModal;
   $("#btnTabHistory").onclick = () => setHistoryTab("history");
@@ -1969,7 +2140,7 @@
     }
   });
   window.addEventListener("keydown", (e) => {
-    if(e.key !== "Escape") return;
+    if(e.key !== "Escape" || $("#finishDialog").open) return;
     closeHistoryModal();
     closeArchiveModal();
   });

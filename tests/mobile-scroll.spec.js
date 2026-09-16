@@ -83,8 +83,7 @@ test('round history scrolls to the last round and across all players', async ({ 
 });
 
 test('a new game shows round zero without adding a saved round', async ({ page }, testInfo) => {
-  page.once('dialog', (dialog) => dialog.accept());
-  await page.locator('#btnNewGame').click();
+  await page.locator('#btnMainMenu').click();
   for (const name of ['Alice', 'Bob']) {
     await page.locator('#playerName').fill(name);
     await page.locator('#btnAdd').click();
@@ -103,8 +102,7 @@ test('a new game shows round zero without adding a saved round', async ({ page }
 });
 
 test('archive list and expanded game details have reachable content', async ({ page }) => {
-  page.once('dialog', (dialog) => dialog.accept());
-  await page.locator('#btnNewGame').click();
+  await page.locator('#btnMainMenu').click();
   await page.locator('#btnSetupHistory').click();
   const panel = page.locator('#tabPanelArchiveGames');
   await scrollToBottom(panel);
@@ -117,8 +115,7 @@ test('archive list and expanded game details have reachable content', async ({ p
 });
 
 test('statistics table scrolls away and all four full-size charts are reachable', async ({ page }, testInfo) => {
-  page.once('dialog', (dialog) => dialog.accept());
-  await page.locator('#btnNewGame').click();
+  await page.locator('#btnMainMenu').click();
   await page.locator('#btnSetupStats').click();
   const panel = page.locator('#tabPanelArchiveStats');
   await expect(page.locator('#statsBody tr')).toHaveCount(24);

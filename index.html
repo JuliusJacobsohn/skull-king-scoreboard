@@ -9,8 +9,13 @@
 
 <body>
   <div class="wrap">
-    <!-- SETUP SCREEN (only when no game is running) -->
+    <!-- MAIN MENU AND NEW GAME SETUP -->
     <section id="setupScreen" class="card">
+      <h1 id="mainMenuTitle">Main menu</h1>
+      <div class="menuGames">
+        <h2 id="openGamesTitle">Open games</h2>
+        <div id="openGamesList" class="openGamesList"></div>
+      </div>
       <div class="row between">
         <h2 id="setupTitle">Players</h2>
         <button id="btnStart" class="btnAccent">Start game</button>
@@ -48,7 +53,8 @@
             <span class="pill"><span id="roundPillText">Round</span> <b id="roundLabel">1</b> <b id="roundDelta">Δ +0</b></span>
           </div>
           <div class="row actionRow">
-            <button id="btnNewGame" class="btnDanger">New game</button>
+            <button id="btnEndGame" class="btnDanger">End game</button>
+            <button id="btnMainMenu">Main menu</button>
             <button id="btnHistory">History</button>
           </div>
         </div>
@@ -142,6 +148,15 @@
       </div>
     </div>
   </div>
+
+  <dialog id="finishDialog" class="finishDialog" aria-labelledby="finishTitle" aria-describedby="finishMessage">
+    <h2 id="finishTitle">End game</h2>
+    <p id="finishMessage"></p>
+    <div class="row">
+      <button id="btnCancelFinish" autofocus>Cancel</button>
+      <button id="btnConfirmFinish" class="btnDanger">End game</button>
+    </div>
+  </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
   <script src="app.js" defer></script>

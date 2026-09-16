@@ -61,26 +61,29 @@ body{
   padding:10px;
 }
 .toolbarRow{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
+  display:grid;
   gap:8px;
-  flex-wrap:nowrap;
 }
 .row.actionRow{
-  display:flex;
-  flex-wrap:nowrap;
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
   gap:6px;
-  width:auto;
-  margin-left:auto;
+  width:100%;
 }
 .actionRow button{
   width:auto;
   flex:0 0 auto;
   padding:7px 9px;
   font-size:12px;
-  white-space:nowrap;
+  white-space:normal;
+  min-height:40px;
 }
+
+h1{font-size:20px; margin:0 0 16px;}
+.menuGames{margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid var(--line);}
+.openGamesList{display:grid; gap:8px; margin-top:10px;}
+.openGameButton{display:grid; gap:5px; text-align:left; width:100%; overflow-wrap:anywhere;}
+.archiveGameActions button{flex:1 1 auto;}
 
 .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
 .between{justify-content:space-between;}
@@ -543,4 +546,16 @@ tr:last-child td{border-bottom:none;}
 body.modalOpen{
   overflow:hidden;
 }
+.finishDialog{
+  max-width:360px;
+  width:calc(100% - 32px);
+  padding:20px;
+  border:1px solid var(--line);
+  border-radius:var(--r);
+  color:var(--text);
+  background:var(--bg);
+}
+.finishDialog::backdrop{background:rgba(0,0,0,.75);}
+.finishDialog p{font-size:14px; line-height:1.5;}
+.finishDialog .row{justify-content:flex-end;}
 .hidden{display:none !important;}
