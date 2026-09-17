@@ -215,7 +215,7 @@ test('inline graph follows game switching, round completion and undo independent
   const a = ui.start(['Alice', 'Bob']);
   assert.deepEqual(Array.from(chart().data.labels), ['0']);
   ui.finishRound();
-  assert.deepEqual(Array.from(chart().data.datasets[0].data), [0, -10]);
+  assert.deepEqual(Array.from(chart().data.datasets[0].data).filter((_, i) => i % 2 === 0), [0, -10]);
   ui.click('#btnHistory'); ui.click('#btnCloseHistory');
   assert.ok(chart());
   ui.click('#btnUndoGame');
@@ -273,10 +273,29 @@ test('finished games show winners and a graph before the table using archived sc
   card.open = true;
   card.dispatchEvent(new ui.window.Event('toggle'));
   const chart = ui.window.chartInstances.at(-1);
-  assert.deepEqual(Array.from(chart.data.labels), ['0', '1', '2', '3', '4']);
-  assert.deepEqual(Array.from(chart.data.datasets[1].data), [0, 10, 30, 60, 100]);
+  assert.deepEqual(Array.from(chart.data.labels), ['0', '', '1', '', '2', '', '3', '', '4']);
+  assert.deepEqual(Array.from(chart.data.datasets[1].data).filter((_, i) => i % 2 === 0), [0, 10, 30, 60, 100]);
   card.open = false;
   card.dispatchEvent(new ui.window.Event('toggle'));
   assert.equal(chart.destroyed, true);
+  ui.window.close();
+});
+
+
+test('tied scores get distinct stable midpoints while real round scores stay exact', () => {
+  const game = archiveFixture();
+  for(const round of game.rounds) for(const entry of round.entries) entry.total = 0;
+  const ui = app({ [ARCHIVE]: JSON.stringify([game]) }, true);
+  const card = ui.el('#closedGamesList .archiveGameCard');
+  card.open = true;
+  card.dispatchEvent(new ui.window.Event('toggle'));
+  const datasets = ui.window.chartInstances.at(-1).data.datasets;
+  assert.ok(datasets[0].data[1] < 0);
+  assert.ok(datasets[1].data[1] > 0);
+  for(const dataset of datasets){
+    assert.deepEqual(Array.from(dataset.data).filter((_, i) => i % 2 === 0), [0, 0, 0, 0, 0]);
+    assert.equal(dataset.data[1], dataset.data[3]);
+    assert.equal(dataset.pointRadius({dataIndex: 1}), 0);
+  }
   ui.window.close();
 });

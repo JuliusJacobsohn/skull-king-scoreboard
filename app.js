@@ -1348,21 +1348,33 @@
       return;
     }
 
-    const labels = ["0", ...rounds.map((r, idx) => String(safeInt(r.round) || (idx + 1)))];
+    const labels = ["0", ...rounds.flatMap((r, idx) => ["", String(safeInt(r.round) || (idx + 1))])];
+    const totals = rounds.flatMap((round) => players.map((player) => round.totals?.[player.id])).filter(Number.isFinite);
+    const range = Math.max(20, Math.max(0, ...totals) - Math.min(0, ...totals));
+    const jitterStep = range * 0.012;
     const datasets = players.map((p, idx) => {
       const color = playerColor(idx);
+      const scores = [0, ...rounds.map((round) => {
+        const total = round.totals?.[p.id];
+        return Number.isFinite(total) ? total : null;
+      })];
+      // Stable offsets separate tied lines without changing their real score points.
+      const jitter = (idx - (players.length - 1) / 2) * jitterStep;
+      const data = [scores[0]];
+      for(let i = 1; i < scores.length; i += 1){
+        const midpoint = scores[i - 1] !== null && scores[i] !== null
+          ? (scores[i - 1] + scores[i]) / 2 + jitter : null;
+        data.push(midpoint, scores[i]);
+      }
       return {
         label: p.name,
-        data: [0, ...rounds.map((r) => {
-          const total = r.totals?.[p.id];
-          return (typeof total === "number") ? total : null;
-        })],
+        data,
         borderColor: color,
         backgroundColor: color,
         borderWidth: 3,
-        pointRadius: 2.5,
-        pointHoverRadius: 5,
-        pointHitRadius: 16,
+        pointRadius: (context) => context.dataIndex % 2 === 0 ? 2.5 : 0,
+        pointHoverRadius: (context) => context.dataIndex % 2 === 0 ? 5 : 0,
+        pointHitRadius: (context) => context.dataIndex % 2 === 0 ? 16 : 0,
         tension: 0.25,
         spanGaps: true
       };
@@ -1400,7 +1412,8 @@
             }
           },
           tooltip: {
-            enabled: true
+            enabled: true,
+            filter: (item) => item.dataIndex % 2 === 0
           }
         },
         layout: {
