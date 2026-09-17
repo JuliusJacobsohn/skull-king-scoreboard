@@ -567,3 +567,5 @@ body.modalOpen{
 .finishDialog p{font-size:14px; line-height:1.5;}
 .finishDialog .row{justify-content:flex-end;}
 .hidden{display:none !important;}
+
+.archiveWinners{color:var(--good);}

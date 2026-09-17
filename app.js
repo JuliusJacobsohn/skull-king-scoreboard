@@ -228,6 +228,7 @@
   let historyTab = "graph";
   let historyChart = null;
   let gameChart = null;
+  const archiveCharts = new Map();
   let archiveTab = "games";
   let statsSelectedPlayer = "";
   let pendingFinishId = null;
@@ -1318,7 +1319,14 @@
     const previousChart = canvasId === "gameGraphCanvas" ? gameChart : historyChart;
     if(previousChart) previousChart.destroy();
 
-    if(state.players.length === 0){
+    const chart = createScoreGraph(canvas, state.players, state.done);
+    if(canvasId === "gameGraphCanvas") gameChart = chart;
+    else historyChart = chart;
+  }
+
+  function createScoreGraph(canvas, players, rounds){
+    if(typeof Chart === "undefined") return null;
+    if(players.length === 0){
       const ctx = canvas.getContext("2d");
       if(!ctx) return;
       const dpr = window.devicePixelRatio || 1;
@@ -1340,12 +1348,12 @@
       return;
     }
 
-    const labels = ["0", ...state.done.map((r, idx) => String(safeInt(r.round) || (idx + 1)))];
-    const datasets = state.players.map((p, idx) => {
+    const labels = ["0", ...rounds.map((r, idx) => String(safeInt(r.round) || (idx + 1)))];
+    const datasets = players.map((p, idx) => {
       const color = playerColor(idx);
       return {
         label: p.name,
-        data: [0, ...state.done.map((r) => {
+        data: [0, ...rounds.map((r) => {
           const total = r.totals?.[p.id];
           return (typeof total === "number") ? total : null;
         })],
@@ -1444,8 +1452,7 @@
         }
       }
     });
-    if(canvasId === "gameGraphCanvas") gameChart = chart;
-    else historyChart = chart;
+    return chart;
   }
 
   function getSortedArchivedGames(){
@@ -1533,6 +1540,10 @@
 
   function renderArchiveGamesList(games, list = $("#archiveGamesList")){
     if(!list) return;
+    for(const canvas of list.querySelectorAll("canvas")){
+      archiveCharts.get(canvas)?.destroy();
+      archiveCharts.delete(canvas);
+    }
     list.innerHTML = "";
 
     if(games.length === 0){
@@ -1557,11 +1568,11 @@
         className: "archiveGameMeta",
         textContent: `${t("archivePlayers")}: ${(game.players || []).join(", ")}`
       }));
-      summary.appendChild(el("span", { className: "small", textContent: t(game.status === "finished" ? "gameFinished" : "gameOpen") }));
+      if(game.status !== "finished") summary.appendChild(el("span", { className: "small", textContent: t("gameOpen") }));
       if(game.status === "finished"){
         const best = Math.max(...game.finalTotals.map((row) => row.total));
         const winners = game.winners.length ? game.winners : game.finalTotals.filter((row) => row.total === best).map((row) => row.name);
-        summary.appendChild(el("div", { className: "archiveStatsLine", textContent: `${t("archiveWinners")}: ${winners.join(", ") || "-"}` }));
+        summary.appendChild(el("div", { className: "archiveStatsLine archiveWinners", textContent: `${t("archiveWinners")}: ${winners.join(", ") || "-"}` }));
       }
       card.appendChild(summary);
 
@@ -1580,12 +1591,29 @@
       }
       const topScore = (game.finalTotals || []).reduce((mx, row) => Math.max(mx, safeInt(row.total)), Number.NEGATIVE_INFINITY);
       detail.appendChild(el("div", {
-        className: "archiveStatsLine",
+        className: "archiveStatsLine archiveWinners",
         textContent: `${t("archiveWinners")}: ${(game.winners || []).join(", ") || "-"} | ${t("archiveTopScore")}: ${Number.isFinite(topScore) ? signed(topScore) : "-"}`
       }));
 
       const rounds = Array.isArray(game.rounds) ? game.rounds : [];
       if(rounds.length > 0){
+        const graphWrap = el("div", { className: "gameGraphWrap archiveGraphWrap" });
+        const canvas = el("canvas", { role: "img" });
+        canvas.setAttribute("aria-label", t("historyGraphAriaLabel"));
+        graphWrap.appendChild(canvas);
+        detail.appendChild(graphWrap);
+        card.addEventListener("toggle", () => {
+          archiveCharts.get(canvas)?.destroy();
+          archiveCharts.delete(canvas);
+          if(!card.open) return;
+          const players = game.players.map((name) => ({ id: normalizeName(name), name }));
+          const scores = rounds.map((round) => ({
+            round: round.round,
+            totals: Object.fromEntries((round.entries || []).map((entry) => [normalizeName(entry.name), entry.total]))
+          }));
+          const chart = createScoreGraph(canvas, players, scores);
+          if(chart) archiveCharts.set(canvas, chart);
+        });
         const wrap = el("div", { className: "histWrap" });
         const table = el("table");
         const thead = el("thead");

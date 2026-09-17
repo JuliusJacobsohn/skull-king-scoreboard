@@ -262,3 +262,21 @@ test('finishing another game from history preserves the active game and its scor
   assert.deepEqual(current(ui.read()), stateB);
   ui.window.close();
 });
+
+
+test('finished games show winners and a graph before the table using archived scores', () => {
+  const ui = app({ [ARCHIVE]: JSON.stringify([archiveFixture()]) }, true);
+  const card = ui.el('#closedGamesList .archiveGameCard');
+  assert.match(card.querySelector('.archiveWinners').textContent, /Ben/);
+  const detail = card.querySelector('.archiveGameDetail');
+  assert.ok(detail.querySelector('.archiveGraphWrap').nextElementSibling.matches('.histWrap'));
+  card.open = true;
+  card.dispatchEvent(new ui.window.Event('toggle'));
+  const chart = ui.window.chartInstances.at(-1);
+  assert.deepEqual(Array.from(chart.data.labels), ['0', '1', '2', '3', '4']);
+  assert.deepEqual(Array.from(chart.data.datasets[1].data), [0, 10, 30, 60, 100]);
+  card.open = false;
+  card.dispatchEvent(new ui.window.Event('toggle'));
+  assert.equal(chart.destroyed, true);
+  ui.window.close();
+});
