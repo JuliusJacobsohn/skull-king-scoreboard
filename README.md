@@ -41,8 +41,9 @@ It is designed for quick mobile use, works without a backend, and persists state
 
 ### Development
 - Pure HTML/CSS/JS with no build step.
-- Graph view uses [Chart.js](https://www.chartjs.org/) loaded via CDN (`jsdelivr`).
+- Graph view uses [Chart.js](https://www.chartjs.org/) bundled locally with the site.
 - Open `index.html` directly in a browser while editing.
+- After changing `app.js` or `style.css`, run `npm run version-assets` to refresh their cache keys.
 - Run `npm ci` and `npm test` for the app's state, persistence, and migration tests. These run in Node without launching a browser.
 - Use browser control at a mobile viewport to check layout and touch interactions.
 - Optional standalone browser suite: `npx playwright install chromium webkit`, then `npm run test:browser`. It uses isolated browser storage and Android/iPhone viewports. Set `PLAYWRIGHT_CHROMIUM_CHANNEL=chrome` to use installed Chrome instead of bundled Chromium.
