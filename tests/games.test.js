@@ -10,10 +10,18 @@ const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
 const script = fs.readFileSync(path.join(__dirname, '../app.js'), 'utf8');
 
 // Run the actual app against an in-memory DOM. No browsers or network are launched.
-function app(storage = {}) {
+function app(storage = {}, charts = false) {
   const dom = new JSDOM(html, { url: 'http://localhost', runScripts: 'outside-only' });
   const { window } = dom;
   window.structuredClone = structuredClone;
+  if(charts){
+    window.chartInstances = [];
+    window.HTMLCanvasElement.prototype.getContext = function () { return { canvas: this }; };
+    window.Chart = class {
+      constructor(ctx, config) { this.canvas = ctx.canvas; this.data = config.data; window.chartInstances.push(this); }
+      destroy() { this.destroyed = true; }
+    };
+  }
   // jsdom has no top-layer dialog implementation; emulate only its open/close state.
   window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
   window.HTMLDialogElement.prototype.close = function () {
@@ -57,7 +65,7 @@ function app(storage = {}) {
 }
 
 function current(state) {
-  const { openGames, setupDraft, undo, ...game } = state;
+  const { openGames, setupDraft, undo, historyClosureVersion, ...game } = state;
   return game;
 }
 
@@ -163,7 +171,7 @@ test('ending is disabled in the first round and can finish after round four with
   ui.window.close();
 });
 
-test('legacy history is backed up, preserved, resumable and finishable without affecting other games', () => {
+test('legacy history is backed up and closed without changing scores, dates or winners', () => {
   const legacy = archiveFixture();
   const other = archiveFixture('other');
   const oldArchive = JSON.stringify([legacy, other]);
@@ -171,23 +179,53 @@ test('legacy history is backed up, preserved, resumable and finishable without a
   const backup = ui.read(`${KEY}_backup_before_sessions`);
   assert.equal(backup.archive, oldArchive);
   assert.deepEqual(ui.read(ARCHIVE).map(({ status, ...game }) => game), [legacy, other]);
-  assert.equal(ui.read().openGames.length, 2);
-  ui.resume('old');
-  assert.equal(ui.read().round, 5);
-  assert.deepEqual(ui.read().players.map((p) => p.total), [-100, 100]);
-  ui.click('#btnMainMenu');
-  ui.click('#btnSetupHistory');
-  ui.click('.btnFinishArchived');
-  ui.click('#btnConfirmFinish');
-  const finished = ui.read(ARCHIVE).find((game) => game.sessionId === 'old');
-  assert.equal(finished.status, 'finished');
-  assert.deepEqual(finished.rounds, legacy.rounds);
-  assert.deepEqual(finished.finalTotals, legacy.finalTotals);
-  assert.equal(ui.read().openGames.length, 1);
+  assert.ok(ui.read(ARCHIVE).every((game) => game.status === 'finished'));
+  assert.equal(ui.read().openGames.length, 0);
+  assert.equal(ui.el('#closedGamesList').children.length, 2);
+  assert.match(ui.el('#closedGamesList summary').textContent, /Winners: Ben/);
+  const id = ui.start(['New player']); ui.finishRound();
   ui = ui.reload();
+  assert.equal(ui.read().sessionId, id);
+  assert.equal(ui.read().openGames.length, 1);
+  assert.equal(ui.read(ARCHIVE).find((game) => game.sessionId === id).status, 'open');
   assert.deepEqual(ui.read(`${KEY}_backup_before_sessions`), backup);
-  assert.deepEqual(ui.read(ARCHIVE).find((game) => game.sessionId === 'other'), { ...other, status: 'open' });
-  assert.equal(ui.read().openGames[0].sessionId, 'other');
+  assert.deepEqual(ui.read(ARCHIVE).find((game) => game.sessionId === 'other'), { ...other, status: 'finished' });
+  ui.window.close();
+});
+
+test('games marked open by the previous release are closed exactly once, including the active snapshot', () => {
+  const legacy = { ...archiveFixture(), status: 'open' };
+  let ui = app({ [KEY]: JSON.stringify({ mode: 'setup', historyClosureVersion: 1 }), [ARCHIVE]: JSON.stringify([legacy]) });
+  ui.resume('old');
+  const data = ui.storage();
+  const previous = JSON.parse(data[KEY]); delete previous.historyClosureVersion;
+  data[KEY] = JSON.stringify(previous);
+  ui.window.close(); ui = app(data);
+  assert.equal(ui.read().mode, 'setup');
+  assert.equal(ui.read().openGames.length, 0);
+  assert.deepEqual(ui.read(ARCHIVE), [{ ...legacy, status: 'finished' }]);
+  ui = ui.reload();
+  assert.equal(ui.read().openGames.length, 0);
+  ui.window.close();
+});
+
+test('inline graph follows game switching, round completion and undo independently of history', () => {
+  const ui = app({}, true);
+  const chart = () => ui.window.chartInstances.filter((item) => item.canvas.id === 'gameGraphCanvas' && !item.destroyed).at(-1);
+  const a = ui.start(['Alice', 'Bob']);
+  assert.deepEqual(Array.from(chart().data.labels), ['0']);
+  ui.finishRound();
+  assert.deepEqual(Array.from(chart().data.datasets[0].data), [0, -10]);
+  ui.click('#btnHistory'); ui.click('#btnCloseHistory');
+  assert.ok(chart());
+  ui.click('#btnUndoGame');
+  assert.deepEqual(Array.from(chart().data.labels), ['0']);
+  ui.click('#btnMainMenu');
+  assert.equal(chart(), undefined);
+  ui.start(['Chris']);
+  assert.equal(chart().data.datasets[0].label, 'Chris');
+  ui.click('#btnMainMenu'); ui.resume(a);
+  assert.equal(chart().data.datasets[0].label, 'Alice');
   ui.window.close();
 });
 

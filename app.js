@@ -28,6 +28,8 @@
       mainMenu: "Main menu",
       cancel: "Cancel",
       openGames: "Open games",
+      closedGames: "Finished games",
+      newGameTitle: "New game",
       noOpenGames: "No open games.",
       gameOpen: "Open",
       gameFinished: "Finished",
@@ -131,6 +133,8 @@
       mainMenu: "Hauptmenü",
       cancel: "Abbrechen",
       openGames: "Offene Spiele",
+      closedGames: "Beendete Spiele",
+      newGameTitle: "Neues Spiel",
       noOpenGames: "Keine offenen Spiele.",
       gameOpen: "Offen",
       gameFinished: "Beendet",
@@ -223,6 +227,7 @@
   let language = loadLanguage();
   let historyTab = "graph";
   let historyChart = null;
+  let gameChart = null;
   let archiveTab = "games";
   let statsSelectedPlayer = "";
   let pendingFinishId = null;
@@ -338,6 +343,14 @@
       const oldArchive = localStorage.getItem(ARCHIVE_KEY);
       if(oldState || oldArchive) localStorage.setItem(backupKey, JSON.stringify({ state: oldState, archive: oldArchive }));
     }
+    // One-time correction: pre-existing history represents finished games.
+    // Keep all score data and dates; future games remain open until explicitly ended.
+    if(stored.historyClosureVersion !== 1){
+      archivedGames = archivedGames.map((game) => ({
+        ...game, status: "finished",
+        finishedAt: game.finishedAt || game.updatedAt || game.startedAt
+      }));
+    }
     const finished = new Set(archivedGames.filter((game) => game.status === "finished").map((game) => game.sessionId));
     for(const saved of Array.isArray(stored.openGames) ? stored.openGames : []){
       const game = normalizeState(saved);
@@ -385,7 +398,7 @@
     if(state.mode === "game") openGames.set(state.sessionId, structuredClone(state));
     else setupDraft = structuredClone(state);
     // The active game, suspended games and setup draft are written atomically.
-    localStorage.setItem(KEY, JSON.stringify({ ...state, openGames: [...openGames.values()], setupDraft }));
+    localStorage.setItem(KEY, JSON.stringify({ ...state, openGames: [...openGames.values()], setupDraft, historyClosureVersion: 1 }));
   }
 
   function mainMenu(){
@@ -664,7 +677,9 @@
   function applyStaticTranslations(){
     document.documentElement.lang = language;
     document.title = t("appTitle");
-    setText("#setupTitle", t("setupPlayers"));
+    setText("#setupTitle", t("newGameTitle"));
+    setText("#closedGamesTitle", t("closedGames"));
+    setText("#gameGraphTitle", t("historyTabGraph"));
     setText("#btnStart", t("setupStartGame"));
     setText("#setupHint", t("setupHint"));
     setText("#languageLabel", t("setupLanguage"));
@@ -697,8 +712,9 @@
     const historyTabs = $("#historyTabs");
     if(historyTabs) historyTabs.setAttribute("aria-label", t("historyViewsAriaLabel"));
 
-    const graphCanvas = $("#histGraphCanvas");
-    if(graphCanvas) graphCanvas.setAttribute("aria-label", t("historyGraphAriaLabel"));
+    for(const id of ["#histGraphCanvas", "#gameGraphCanvas"]){
+      $(id).setAttribute("aria-label", t("historyGraphAriaLabel"));
+    }
 
     const archiveTabs = $("#archiveTabs");
     if(archiveTabs) archiveTabs.setAttribute("aria-label", t("archiveViewsAriaLabel"));
@@ -938,6 +954,7 @@
       setup.classList.remove("hidden");
       game.classList.add("hidden");
       closeHistoryModal();
+      if(gameChart){ gameChart.destroy(); gameChart = null; }
       renderSetup();
     } else {
       setup.classList.add("hidden");
@@ -950,6 +967,7 @@
 
   function renderSetup(){
     renderOpenGames();
+    renderArchiveGamesList(getSortedArchivedGames().filter((game) => game.status === "finished"), $("#closedGamesList"));
     renderRecentPlayers();
 
     const chips = $("#chips");
@@ -1020,6 +1038,7 @@
     renderEntries();
     renderRoundActions();
     renderHistory();
+    renderGraph("gameGraphCanvas");
     if(historyTab === "graph" && !$("#historyModal").classList.contains("hidden")) renderGraph();
   }
 
@@ -1291,15 +1310,13 @@
     });
   }
 
-  function renderGraph(){
-    const canvas = $("#histGraphCanvas");
+  function renderGraph(canvasId = "histGraphCanvas"){
+    const canvas = $(`#${canvasId}`);
     if(!canvas) return;
     if(typeof Chart === "undefined") return;
 
-    if(historyChart){
-      historyChart.destroy();
-      historyChart = null;
-    }
+    const previousChart = canvasId === "gameGraphCanvas" ? gameChart : historyChart;
+    if(previousChart) previousChart.destroy();
 
     if(state.players.length === 0){
       const ctx = canvas.getContext("2d");
@@ -1350,7 +1367,7 @@
 
     const ctx = canvas.getContext("2d");
     if(!ctx) return;
-    historyChart = new Chart(ctx, {
+    const chart = new Chart(ctx, {
       type: "line",
       data: { labels, datasets },
       options: {
@@ -1427,6 +1444,8 @@
         }
       }
     });
+    if(canvasId === "gameGraphCanvas") gameChart = chart;
+    else historyChart = chart;
   }
 
   function getSortedArchivedGames(){
@@ -1512,8 +1531,7 @@
     if(archiveTab === "stats") renderStatsCharts(stats);
   }
 
-  function renderArchiveGamesList(games){
-    const list = $("#archiveGamesList");
+  function renderArchiveGamesList(games, list = $("#archiveGamesList")){
     if(!list) return;
     list.innerHTML = "";
 
@@ -1540,6 +1558,11 @@
         textContent: `${t("archivePlayers")}: ${(game.players || []).join(", ")}`
       }));
       summary.appendChild(el("span", { className: "small", textContent: t(game.status === "finished" ? "gameFinished" : "gameOpen") }));
+      if(game.status === "finished"){
+        const best = Math.max(...game.finalTotals.map((row) => row.total));
+        const winners = game.winners.length ? game.winners : game.finalTotals.filter((row) => row.total === best).map((row) => row.name);
+        summary.appendChild(el("div", { className: "archiveStatsLine", textContent: `${t("archiveWinners")}: ${winners.join(", ") || "-"}` }));
+      }
       card.appendChild(summary);
 
       const detail = el("div", { className: "archiveGameDetail" });

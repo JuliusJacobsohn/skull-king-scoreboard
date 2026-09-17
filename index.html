@@ -16,41 +16,48 @@
         <h2 id="openGamesTitle">Open games</h2>
         <div id="openGamesList" class="openGamesList"></div>
       </div>
-      <div class="row between">
-        <h2 id="setupTitle">Players</h2>
-        <button id="btnStart" class="btnAccent">Start game</button>
-      </div>
-      <div id="setupHint" class="small" style="margin-top:6px;">
-        Add players, then start. Player order determines turn highlight.
-      </div>
+      <div class="newGameSetup">
+        <div class="row between">
+          <h2 id="setupTitle">New game</h2>
+          <button id="btnStart" class="btnAccent">Start game</button>
+        </div>
+        <div id="setupHint" class="small" style="margin-top:6px;">
+          Add players, then start. Player order determines turn highlight.
+        </div>
 
-      <div class="row between" style="margin-top:10px;">
-        <label id="languageLabel" for="languageSelect" class="small">Language</label>
-        <select id="languageSelect"></select>
-      </div>
+        <div class="row between" style="margin-top:10px;">
+          <label id="languageLabel" for="languageSelect" class="small">Language</label>
+          <select id="languageSelect"></select>
+        </div>
 
-      <div class="row" style="margin-top:10px;">
-        <input id="playerName" type="text" placeholder="username" autocomplete="off" />
-        <button id="btnAdd" class="btnAccent">Add</button>
-      </div>
-      <div id="recentPlayersWrap" class="recentPlayersWrap hidden">
-        <div id="recentPlayersLabel" class="small">Recent players</div>
-        <div id="recentPlayers" class="chips recentPlayers"></div>
-      </div>
-      <div class="row setupActionsRow">
-        <button id="btnSetupHistory">See history</button>
-        <button id="btnSetupStats">Player statistics</button>
-      </div>
+        <div class="row" style="margin-top:10px;">
+          <input id="playerName" type="text" placeholder="username" autocomplete="off" />
+          <button id="btnAdd" class="btnAccent">Add</button>
+        </div>
+        <div id="recentPlayersWrap" class="recentPlayersWrap hidden">
+          <div id="recentPlayersLabel" class="small">Recent players</div>
+          <div id="recentPlayers" class="chips recentPlayers"></div>
+        </div>
+        <div class="row setupActionsRow">
+          <button id="btnSetupHistory">See history</button>
+          <button id="btnSetupStats">Player statistics</button>
+        </div>
 
-      <div id="chips" class="chips"></div>
+        <div id="chips" class="chips"></div>
+      </div>
+      <section class="closedGames">
+        <h2 id="closedGamesTitle">Finished games</h2>
+        <div id="closedGamesList" class="archiveGamesList"></div>
+      </section>
     </section>
 
     <!-- GAME SCREEN -->
     <section id="gameScreen" class="hidden">
       <div class="card">
         <div class="toolbarRow">
-          <div class="row" style="gap:8px;">
+          <div class="roundHeading">
             <span class="pill"><span id="roundPillText">Round</span> <b id="roundLabel">1</b> <b id="roundDelta">Δ +0</b></span>
+            <button id="btnUndoGame" class="undoButton" disabled>↶ Undo</button>
           </div>
           <div class="row actionRow">
             <button id="btnEndGame" class="btnDanger">End game</button>
@@ -59,15 +66,16 @@
           </div>
         </div>
 
-        <div class="secondaryActions">
-          <button id="btnUndoGame" class="undoButton" disabled>↶ Undo</button>
-        </div>
         <div id="entryList" class="entryList"></div>
         <div class="roundActions">
           <div id="roundActionStatus" class="small mono"></div>
           <button id="btnRoundAction" class="btnAccent">Confirm bids</button>
         </div>
       </div>
+      <section id="gameGraphPanel" class="card">
+        <h2 id="gameGraphTitle">Graph</h2>
+        <div class="gameGraphWrap"><canvas id="gameGraphCanvas" aria-label="Score progression graph"></canvas></div>
+      </section>
     </section>
   </div>
 

@@ -13,12 +13,13 @@ It is designed for quick mobile use, works without a backend, and persists state
 - Fast, tap-friendly round input for Bid, Won tricks, Pirates bonus, and Mermaid bonus.
 - Auto-fill for the final `Won` value: once `n - 1` players have entered `Won`, the last player is set to `round - sum(other won)`.
 - Live round points preview and running totals.
+- Score progression graph in a fixed-height panel below the game, starting at round 0.
 - History modal with two tabs:
   - **History**: per-round points and totals table.
   - **Graph** (default): score progression chart (x = round, y = total score) with one line color per player, starting at round 0 with zero scores.
 - Local persistence via `localStorage`.
 - Undo bid confirmation or reopen a completed round to correct its results, even after reloading. Change individual bids, results, and bonuses directly.
-- Main menu with all open games. Switch games and resume unfinished bids or results.
+- Main menu with open games, new-game setup, and finished games showing the winners. Switch games and resume unfinished bids or results.
 - End a game after any completed round, or mark it finished from history. Finished games remain in history and player statistics.
 - Mobile history and statistics use one vertical scrolling area per tab; wide tables can also be swiped horizontally.
 

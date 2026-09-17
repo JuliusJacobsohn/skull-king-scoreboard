@@ -64,6 +64,13 @@ body{
   display:grid;
   gap:8px;
 }
+.roundHeading{display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; align-items:center;}
+.roundHeading .pill{grid-column:span 2; justify-self:start;}
+.roundHeading .undoButton{justify-self:end;}
+.gameGraphWrap{height:320px; position:relative; margin-top:10px;}
+.gameGraphWrap canvas{display:block; width:100%; height:100%;}
+.closedGames{border-top:1px solid var(--line); margin-top:20px; padding-top:16px;}
+#closedGamesList{margin-top:10px;}
 .row.actionRow{
   display:grid;
   grid-template-columns:repeat(3, minmax(0, 1fr));
@@ -302,7 +309,8 @@ button:disabled:hover{
 }
 .undoButton{
   min-height:32px;
-  padding:6px 8px;
+  padding:6px;
+  white-space:nowrap;
   font-size:12px;
   font-weight:600;
   color:var(--muted);

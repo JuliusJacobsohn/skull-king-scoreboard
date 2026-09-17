@@ -4,7 +4,7 @@ const ARCHIVE = `${KEY}_archived_games`;
 
 async function read(page) {
   return page.evaluate((key) => {
-    const { openGames, setupDraft, ...state } = JSON.parse(localStorage.getItem(key));
+    const { openGames, setupDraft, historyClosureVersion, ...state } = JSON.parse(localStorage.getItem(key));
     return state;
   }, KEY);
 }
@@ -101,7 +101,7 @@ test('legacy saved games reopen rounds, preserve other archives and update stati
   const other = { id: 'other', sessionId: 'other', players: ['Dana'], finalTotals: [{ name: 'Dana', total: 70 }], roundsPlayed: 1, winners: ['Dana'], rounds: [], startedAt: '2024-01-01', finishedAt: '2024-01-01', updatedAt: '2024-01-01' };
   await page.goto('/');
   await page.evaluate(({ key, archive, oldGame, other }) => {
-    localStorage.setItem(key, JSON.stringify(oldGame));
+    localStorage.setItem(key, JSON.stringify({ ...oldGame, historyClosureVersion: 1 }));
     localStorage.setItem(archive, JSON.stringify([other, { ...other, id: 'legacy', sessionId: 'legacy' }]));
   }, { key: KEY, archive: ARCHIVE, oldGame, other });
   await page.reload();
